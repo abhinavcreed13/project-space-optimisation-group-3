@@ -14,7 +14,8 @@ Optimisation of university space based on a supply and demand analysis: A case s
 
 ## Data Description
 
-- Space metadata covering meeting rooms and toilets: Room code, room capacity, room type, etc. - Some meeting rooms have its associated equipment data to be analysed.
+- Space metadata covering meeting rooms and toilets: Room code, room capacity, room type, etc. 
+- Some meeting rooms have its associated equipment data to be analysed.
 - De-identified Employee data including the number of employees by building.
 - Timetabling and class registration data including the subject information of the current semester.
 
@@ -35,6 +36,11 @@ Optimisation of university space based on a supply and demand analysis: A case s
     - Position title: Program Manager, Spatial Analytics
     - Email: jadepg@unimelb.edu.au
     - Phone: 8344 0835
+    
+- Industry Contact: 
+    - Contact name:	Anbin Hou
+    - Position title: Project Manager
+    - Email: anbin.hou@unimelb.edu.au
 
 
 
