@@ -1,0 +1,106 @@
+\documentclass[a4paper, 11pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath}
+\usepackage{lmodern}
+\usepackage[T1]{fontenc}
+\usepackage{textcomp}
+\usepackage{comment}
+\usepackage{fullpage} % changes the margin
+\usepackage{graphicx}
+\usepackage{import}
+\usepackage[english]{babel}
+\usepackage[backend=biber,sorting=none]{biblatex}
+\usepackage{titlesec}
+\usepackage{hyperref}
+\usepackage{csquotes}
+\usepackage{lipsum}
+\usepackage{graphicx}
+\usepackage{caption,subcaption}
+\usepackage{amssymb}
+\usepackage[dvipsnames]{xcolor}
+% \usepackage[
+% backend=biber,
+% style=alphabetic,
+% sorting=ynt
+% ]{biblatex}
+
+\usepackage{geometry}
+ \geometry{
+ a4paper,
+ left=22mm,
+ top=21mm,
+ bottom =21mm,
+ right=22mm
+ }
+
+% setting paragraph style
+\makeatletter
+\renewcommand\paragraph{\@startsection{paragraph}{4}{\z@}%
+                        {-3.25ex\@plus -1ex \@minus -.2ex}%
+                        {0.0001pt \@plus .2ex}%
+                        {\normalfont\normalsize\bfseries}}
+\renewcommand\subparagraph{\@startsection{subparagraph}{5}{\z@}%
+                        {-3.25ex\@plus -1ex \@minus -.2ex}%
+                        {0.0001pt \@plus .2ex}%
+                        {\normalfont\normalsize\bfseries}}
+%\renewcommand\thesection{\arabic{section}}
+%\renewcommand\thesubsubsection{\thesubsection.\alph{subsubsection}}  
+% \renewcommand\thesubsubsection{\alph{subsubsection}}
+\renewcommand\thesubparagraph{}
+
+\makeatother
+% setting depth counter
+\setcounter{secnumdepth}{6}
+\setcounter{tocdepth}{6}
+
+\graphicspath{{resources/images/}}
+\addbibresource{references.bib}
+
+\begin{document}
+
+\import{layout/}{title.tex}
+\pagebreak
+
+\import{layout/}{abstract.tex}
+
+\thispagestyle{empty}
+\setcounter{tocdepth}{2}
+\tableofcontents{}
+\pagebreak
+
+\setcounter{page}{1}
+
+\section{Introduction}
+\import{content/}{introduction.tex}
+\clearpage
+
+\section{Related Work}
+\import{content/}{related-work.tex}
+\clearpage
+
+\section{Data Analysis}
+\subsection{Exploratory Data Analysis}
+\import{content/data-analysis/}{exploratory-data-analysis.tex}
+
+\subsection{Data Preprocessing}
+\import{content/data-analysis/}{data-preprocessing.tex}
+
+\subsection{Data Correlations}
+\import{content/data-analysis/}{data-correlations.tex}
+
+\subsection{Spatial Data Analysis}
+\import{content/data-analysis/}{spatial-data-analysis.tex}
+
+\clearpage
+
+\section{Proposed Methods}
+\import{content/}{methods.tex}
+\clearpage
+
+\section{Timeline}
+\import{content/}{timeline.tex}
+\clearpage
+
+\printbibliography
+
+\end{document}
