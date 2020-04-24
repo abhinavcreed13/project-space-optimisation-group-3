@@ -8,6 +8,8 @@
 \usepackage{fullpage} % changes the margin
 \usepackage{graphicx}
 \usepackage{import}
+\usepackage{float}
+\linespread{1.5}
 \usepackage[english]{babel}
 \usepackage[backend=biber,sorting=none]{biblatex}
 \usepackage{titlesec}
@@ -27,10 +29,10 @@
 \usepackage{geometry}
  \geometry{
  a4paper,
- left=22mm,
- top=21mm,
- bottom =21mm,
- right=22mm
+ left=18mm,
+ top=18mm,
+ bottom=18mm,
+ right=18mm
  }
 
 % setting paragraph style
@@ -64,7 +66,7 @@
 \import{layout/}{abstract.tex}
 
 \thispagestyle{empty}
-\setcounter{tocdepth}{2}
+\setcounter{tocdepth}{3}
 \tableofcontents{}
 \pagebreak
 
@@ -79,13 +81,31 @@
 \clearpage
 
 \section{Data Analysis}
+The goal of this project is to analyse and optimise the current supply and demand of meeting rooms and toilets on campus. We have been provided with the following data to perform this analysis:
+
+\begin{table}[H]
+\centering
+\begin{tabular}{|l|l|l|}
+\hline
+\# & \textbf{Dataset Name} & \textbf{Dataset Description}                                           \\ \hline
+1  & \texttt{uom-space}             & Space metadata of all rooms across campuses and buildings              \\ \hline
+2  & \texttt{rm-category-type}      & Definition of all UoM standard room categories and types               \\ \hline
+3  & \texttt{fl-name}               & Dataset to provide more information about building floors              \\ \hline
+4  & \texttt{av-equipment}         & Audio Visual equipment data including its location information         \\ \hline
+5  & \texttt{em-location}           & De-identified employee/staff location data                             \\ \hline
+6  & \texttt{2020-timetable-v2}     & Latest class scheduling data including a class's time and its location \\ \hline
+7  & \texttt{meeting-room-usage}    & Collected data of meeting room usage                                   \\ \hline
+\end{tabular}
+\caption{Provided datasets}
+\end{table}
+
 \subsection{Exploratory Data Analysis}
 \import{content/data-analysis/}{exploratory-data-analysis.tex}
 
 \subsection{Data Preprocessing}
 \import{content/data-analysis/}{data-preprocessing.tex}
 
-\subsection{Data Correlations}
+\subsection{Data Correlations} \label{correlations}
 \import{content/data-analysis/}{data-correlations.tex}
 
 \subsection{Spatial Data Analysis}
