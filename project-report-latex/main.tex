@@ -20,6 +20,10 @@
 \usepackage{caption,subcaption}
 \usepackage{amssymb}
 \usepackage[dvipsnames]{xcolor}
+\usepackage[ruled,vlined]{algorithm2e}
+\usepackage{setspace}
+\usepackage{algorithm,algorithmic}
+%\usepackage{algorithm,algorithmic}
 % \usepackage[
 % backend=biber,
 % style=alphabetic,
@@ -29,10 +33,10 @@
 \usepackage{geometry}
  \geometry{
  a4paper,
- left=18mm,
- top=18mm,
- bottom=18mm,
- right=18mm
+ left=20mm,
+ top=20mm,
+ bottom=20mm,
+ right=20mm
  }
 
 % setting paragraph style
@@ -63,7 +67,7 @@
 \import{layout/}{title.tex}
 \pagebreak
 
-\import{layout/}{abstract.tex}
+% \import{layout/}{abstract.tex}
 
 \thispagestyle{empty}
 \setcounter{tocdepth}{3}
@@ -76,7 +80,7 @@
 \import{content/}{introduction.tex}
 \clearpage
 
-\section{Related Work}
+\section{Related Work} \label{related_work}
 \import{content/}{related-work.tex}
 \clearpage
 
