@@ -1,4 +1,4 @@
-# MAST90106 - Data Science Project 1
+# Data Science Project - Group 3
 
 ## Project Title
 
@@ -41,12 +41,14 @@ Optimisation of university space based on a supply and demand analysis: A case s
     - Contact name:	Anbin Hou
     - Position title: Project Manager
     - Email: anbin.hou@unimelb.edu.au
-    
-## Presentation
+
+## MAST90106 - Project Part-1
+
+### Presentation
 
 Canva: https://www.canva.com/design/DAD8lTyu9o8/share/preview?token=d7IScot8lTEjSVCoZXAcJg&role=EDITOR&utm_content=DAD8lTyu9o8&utm_campaign=designshare&utm_medium=link&utm_source=sharebutton
 
-## Latex Report
+### Latex Report
 
 Overleaf: https://www.overleaf.com/9639764725mnfkcckzbdyv
 
