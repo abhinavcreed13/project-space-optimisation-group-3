@@ -1,6 +1,6 @@
 import pandas as pd
 
-base_url = '/Users/abhinavsharma13/Google Drive/Mission Data Science [2019-2020]/Semester 4/MAST90107/project-space-optimisation-group-3/project-data/'
+base_url = 'C:/Users/deshp/Google Drive/project-space-optimisation-group-3/project-data/'
 uom_space_url = base_url+'uom-space.xlsx'
 rm_category_type_url = base_url+'rm-category-type-cleaned.xlsx'
 em_location_url = base_url+'em-location.xlsx'
