@@ -1,3 +1,5 @@
+# -- Run: data_helper.py before this ---
+
 import pandas as pd
 
 base_url = '/Users/abhinavsharma13/Google Drive/Mission Data Science [2019-2020]/Semester 4/MAST90107/project-space-optimisation-group-3/project-data/'
