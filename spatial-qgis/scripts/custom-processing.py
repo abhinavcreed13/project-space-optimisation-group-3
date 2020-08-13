@@ -10,7 +10,6 @@
 *                                                                         *
 ***************************************************************************
 """
-
 from qgis.PyQt.QtCore import QCoreApplication,QVariant
 from qgis.core import (QgsProcessing,
                        QgsFeatureSink,
@@ -47,9 +46,6 @@ class CustomProcessingAlgorithm(QgsProcessingAlgorithm):
     INPUT = 'INPUT'
     OUTPUT = 'OUTPUT'
     BASE_URL = "base_url"
-    CAMPUS_CODE = "campus_code"
-    SEARCH_KEY = "search_key"
-    COVID_ENABLED = "covid"
 
     def tr(self, string):
         """
@@ -68,14 +64,14 @@ class CustomProcessingAlgorithm(QgsProcessingAlgorithm):
         lowercase alphanumeric characters only and no spaces or other
         formatting characters.
         """
-        return 'Optimization script'
+        return 'Data Loader Script'
 
     def displayName(self):
         """
         Returns the translated algorithm name, which should be used for any
         user-visible display of the algorithm name.
         """
-        return self.tr('Optimization script')
+        return self.tr('Data Loader Script')
 
     def group(self):
         """
@@ -125,28 +121,6 @@ class CustomProcessingAlgorithm(QgsProcessingAlgorithm):
             )
         )
         
-        self.addParameter(
-            QgsProcessingParameterString(
-                self.CAMPUS_CODE,
-                'Enter Campus Code'
-            )
-        )
-        
-        self.addParameter(
-            QgsProcessingParameterString(
-                self.SEARCH_KEY,
-                'Enter Building Code'
-            )
-        )
-        
-        self.addParameter(
-            QgsProcessingParameterBoolean(
-                self.COVID_ENABLED,
-                'Enable COVID',
-            )
-        )
-        
-
         # We add a feature sink in which to store our processed features (this
         # usually takes the form of a newly created vector layer when the
         # algorithm is run in QGIS).
@@ -177,31 +151,9 @@ class CustomProcessingAlgorithm(QgsProcessingAlgorithm):
             context
         )
         
-        campus_code = self.parameterAsString(
-            parameters,
-            self.CAMPUS_CODE,
-            context
-        )
-        
-        building_code = self.parameterAsString(
-            parameters,
-            self.SEARCH_KEY,
-            context
-        )
-        
-       # covid_enabled = self.parameterAsBool(
-        #    parameters,
-        #    self.COVID_ENABLED,
-        #    context
-        #)
-       
         fields = QgsFields()
         fields.append(QgsField(base_url, QVariant.String))
-        fields.append(QgsField(campus_code,QVariant.String))
-        fields.append(QgsField(building_code,QVariant.String))
-        #fields.append(QgsField(covid_enabled,QVariant.Bool))
-        
-
+       
         # If source was not found, throw an exception to indicate that the algorithm
         # encountered a fatal error. The exception text can be any string, but in this
         # case we use the pre-built invalidSourceError method to return a standard
@@ -282,10 +234,6 @@ class CustomProcessingAlgorithm(QgsProcessingAlgorithm):
         # dictionary, with keys matching the feature corresponding parameter
         # or output names.
         return {self.OUTPUT: dest_id}
-
-
-
-
 
 class DataProcessor():
     def __init__(self,uom_space_url,rm_category_type_url,
@@ -468,44 +416,31 @@ class DataMerger():
     def __init__(self,feedback):
         self.feedback = feedback
 
-
     def get_merged_space_data(self,uom_space_df,rm_category_type_df, floor_df):
         uom_space_df_enhanced = pd.merge(uom_space_df,floor_df,on=['Building Code','Floor Code'])
         self.feedback.pushInfo("# Merge - uom_space + floor_data")
-        # self.feedback.pushInfo(uom_space_df_enhanced.shape)
-        # self.feedback.pushInfo('Unable to merge records:',uom_space_df.shape[0]-uom_space_df_enhanced.shape[0])
         merged_space_data_df = pd.merge(uom_space_df_enhanced,rm_category_type_df,on=['Room Category','Room Type'])
         self.feedback.pushInfo("# Merge - enhanced_uom_space + rm_category_type")
-        # self.feedback.pushInfo((uom_space_df_enhanced.shape, merged_space_data_df.shape))
-        # self.feedback.pushInfo('Unable to merge records:',uom_space_df_enhanced.shape[0]-merged_space_data_df.shape[0])
         return merged_space_data_df
 
     def get_merged_em_location_data(self,em_location_df,merged_space_data_df):
         self.feedback.pushInfo("# merge - space_data + em_location")
         merged_em_location_df = pd.merge(em_location_df,merged_space_data_df,on=['Building Code','Floor Code','Room Code'])
-        # self.feedback.pushInfo((em_location_df.shape, merged_em_location_df.shape))
-        # self.feedback.pushInfo('Unable to merge records:',em_location_df.shape[0]-merged_em_location_df.shape[0])
         return merged_em_location_df
 
     def get_merged_av_equipment_data(self,av_equipment_df,merged_space_data_df):
         self.feedback.pushInfo("# merge - space_data + av_equipment")
         merged_av_equipment_df = pd.merge(av_equipment_df,merged_space_data_df,on=['Campus Code','Building Code','Floor Code','Room Code'])
-        # self.feedback.pushInfo((av_equipment_df.shape, merged_av_equipment_df.shape))
-        # self.feedback.pushInfo('Unable to merge records:',av_equipment_df.shape[0]-merged_av_equipment_df.shape[0])
         return merged_av_equipment_df
 
     def get_merged_timetable_data(self,timetable_df,merged_space_data_df):
         self.feedback.pushInfo("# merge - space_data + timetable_data")
         merged_timetable_df = pd.merge(timetable_df,merged_space_data_df,on=['Campus Code','Building Code','Room Code'])
-        # self.feedback.pushInfo((timetable_df.shape, merged_timetable_df.shape))
-        # self.feedback.pushInfo('Unable to merge records:',timetable_df.shape[0]-merged_timetable_df.shape[0])
         return merged_timetable_df
 
     def get_merged_meeting_room_usage_data(self,meeting_room_usage_df,merged_space_data_df):
         self.feedback.pushInfo("# merge - space_data + meeting_room_usage")
         merged_meeting_room_usage_df = pd.merge(meeting_room_usage_df,merged_space_data_df,on=['Campus Code','Building Code','Floor Code','Room Code'])
-        # self.feedback.pushInfo((meeting_room_usage_df.shape, merged_meeting_room_usage_df.shape))
-        # self.feedback.pushInfo('Unable to merge records:',meeting_room_usage_df.shape[0]-merged_meeting_room_usage_df.shape[0])
         return merged_meeting_room_usage_df
 
 class DataExtractor():
