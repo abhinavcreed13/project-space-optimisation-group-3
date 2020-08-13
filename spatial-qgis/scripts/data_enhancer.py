@@ -1,3 +1,5 @@
+# -- Run: data_loader.py before this ---
+
 from qgis.core import QgsProject
 
 campus_code = "PAR"
