@@ -21,7 +21,10 @@ from qgis.core import (QgsProcessing,
                        QgsProcessingParameterBoolean,
                        QgsProcessingParameterString,
                        QgsField, 
-                       QgsFields)
+                       QgsFields,
+                       QgsProject,
+                       QgsFeature,
+                       QgsVectorLayer)
 from qgis import processing
 import pandas as pd
 
@@ -46,6 +49,8 @@ class CustomProcessingAlgorithm(QgsProcessingAlgorithm):
     INPUT = 'INPUT'
     OUTPUT = 'OUTPUT'
     BASE_URL = "base_url"
+    CAMPUS_CODE = "campus_code"
+    SEARCH_KEY = "search_key"
 
     def tr(self, string):
         """
@@ -98,6 +103,7 @@ class CustomProcessingAlgorithm(QgsProcessingAlgorithm):
         """
         return self.tr("Creates custom layers according to the requirment")
 
+    
     def initAlgorithm(self, config=None):
         """
         Here we define the inputs and output of the algorithm, along
@@ -117,10 +123,25 @@ class CustomProcessingAlgorithm(QgsProcessingAlgorithm):
         self.addParameter(
             QgsProcessingParameterString(
                 self.BASE_URL,
-                'Enter Base URL'
+                'Enter Base URL',
+                defaultValue="C:/Users/deshp/Google Drive/project-space-optimisation-group-3/project-data/"
             )
         )
-        
+        self.addParameter(
+            QgsProcessingParameterString(
+                self.CAMPUS_CODE,
+                'Enter Campus Code',
+                defaultValue="par"
+
+            )
+        )
+        self.addParameter(
+            QgsProcessingParameterString(
+                self.SEARCH_KEY,
+                'Enter Search Key',
+                defaultValue="BUILD_NO"
+            )
+        )
         # We add a feature sink in which to store our processed features (this
         # usually takes the form of a newly created vector layer when the
         # algorithm is run in QGIS).
@@ -150,14 +171,44 @@ class CustomProcessingAlgorithm(QgsProcessingAlgorithm):
             self.BASE_URL,
             context
         )
-        
+
+        campus_code = self.parameterAsString(
+            parameters,
+            self.CAMPUS_CODE,
+            context
+        )
+
+        search_key = self.parameterAsString(
+            parameters,
+            self.SEARCH_KEY,
+            context
+        )
+
+        base_url = base_url.strip()
+        campus_code = campus_code.strip().lower()
+        search_key = search_key.strip()
+
         fields = QgsFields()
         fields.append(QgsField(base_url, QVariant.String))
-       
+        fields.append(QgsField(campus_code,QVariant.String))
+        fields.append(QgsField(search_key,QVariant.String))
+        # fields.append(QgsField('MR_WEIGHTS',QVariant.Double))
+
+        # weightFieldIndex = source.indexFromName('MR_WEIGHTS')
+        # if weightFieldIndex != -1:
+        #     removeFields = fields.indexOf('MR_WEIGHTS')
+        #     fields.remove(removeFields)
+        # else:
+        #     fields.append(QgsField('MR_WEIGHTS',QVariant.Double))
+
+
+
         # If source was not found, throw an exception to indicate that the algorithm
         # encountered a fatal error. The exception text can be any string, but in this
         # case we use the pre-built invalidSourceError method to return a standard
         # helper text for when a source cannot be evaluated
+
+
         if source is None:
             raise QgsProcessingException(self.invalidSourceError(parameters, self.INPUT))
 
@@ -185,55 +236,79 @@ class CustomProcessingAlgorithm(QgsProcessingAlgorithm):
         _extractor = DataExtractor(feedback)
         possible_meeting_rooms_data = _extractor.get_meeting_rooms_data(_processor.rm_category_type_df, space_data)
         possible_toilets_data = _extractor.get_toilets_data(_processor.rm_category_type_df, space_data)
-        feedback.pushInfo('END')
+        # feedback.pushInfo(str(len(possible_meeting_rooms_data)))
+        # feedback.pushInfo('campus code'+campus_code)
+        # feedback.pushInfo(str(possible_meeting_rooms_data['Campus Code']))
+
+        filtered_meeting_rooms_data = possible_meeting_rooms_data[possible_meeting_rooms_data['Campus Code'] == campus_code]
+        filtered_employee_data = employee_data[employee_data['Campus Code']==campus_code]
+        feedback.pushInfo(str(len(filtered_meeting_rooms_data)))
+        feedback.pushInfo(str(len(filtered_employee_data)))
+        feedback.pushInfo('# merging data for getting supply')
+        mr_data = filtered_meeting_rooms_data.groupby(by=['Campus Code','Building Code','Building Name'], as_index=False).agg({'Room Code':pd.Series.nunique,'Room Capacity':sum})
+        mr_data = mr_data.rename(columns={"Room Code": "MR_COUNT", "Room Capacity": "MR_CAP"})
+        feedback.pushInfo('# merging data for getting demand')
+
+        emp_data = filtered_employee_data.groupby(by=['Campus Code','Building Code','Building Name'], as_index=False).agg({'Employee Sequential ID':pd.Series.nunique})
+        emp_data = emp_data.rename(columns={'Employee Sequential ID':'EMP_COUNT'})
+        feedback.pushInfo(str(len(emp_data)))
+        layer = QgsVectorLayer('C:/Users/deshp/Google Drive/project-space-optimisation-group-3/spatial-qgis/BL_OUTLINE/PAR_BUILDING_OUTLINE/PAR_BUILDING_OUTLINE.shp')
+
+        layer_provider = layer.dataProvider()
+        layer.startEditing()
+        feedback.pushInfo('Started editing'+str(layer))
+
+        feedback.pushInfo(str(layer_provider))
+        weightFieldIndex = layer_provider.fieldNameIndex('MR_WEIGHTS')
+        if weightFieldIndex != -1:
+            layer_provider.deleteAttributes([weightFieldIndex])
+            layer.updateFields()
+
+        layer_provider.addAttributes([QgsField("MR_WEIGHTS",  QVariant.Double)])
+
+        layer.updateFields()
+        weightFieldIndex = layer_provider.fieldNameIndex('MR_WEIGHTS')
+        feedback.pushInfo('weightFieldIndex added'+ str(weightFieldIndex))
 
         # If sink was not created, throw an exception to indicate that the algorithm
         # encountered a fatal error. The exception text can be any string, but in this
         # case we use the pre-built invalidSinkError method to return a standard
         # helper text for when a sink cannot be evaluated
-        # if sink is None:
-        #     raise QgsProcessingException(self.invalidSinkError(parameters, self.OUTPUT))
+        if sink is None:
+            raise QgsProcessingException(self.invalidSinkError(parameters, self.OUTPUT))
 
         # # Compute the number of steps to display within the progress bar and
         # # get features from source
-        # total = 100.0 / source.featureCount() if source.featureCount() else 0
-        # features = source.getFeatures()
+        total = 100.0 / layer.featureCount() if layer.featureCount() else 0
+        features = layer.getFeatures()
+        # layer.startEditing()
+        
+        _features = DataFeatures(feedback)
+        for i,feature in enumerate(features):
+            # new_feature =  QgsFeature()
+            # new_feature.setGeometry(feature.geometry())
+            aid = layer_provider.fieldNameIndex('MR_WEIGHTS')
+            
+            if feedback.isCanceled():
+                break
+            id = feature.id()
+            supply = _features.get_meeting_room_capacity(mr_data, feature[search_key])
+            demand = _features.get_employee_count(emp_data, feature[search_key])
 
-        # for current, feature in enumerate(features):
-        #     # Stop the algorithm if cancel button has been clicked
-        #     if feedback.isCanceled():
-        #         break
+            if supply and demand:
+                weight = float(supply/demand)
+                # feedback.pushInfo('weight---'+str(weight))
+            else:
+                weight = 'NULL'
+                # feedback.pushInfo('weight---'+str(weight))
 
-        #     # Add a feature in the sink
-        #     sink.addFeature(feature, QgsFeatureSink.FastInsert)
+            attr_value={aid:weight}
+            layer_provider.changeAttributeValues({id:attr_value})
+            layer.updateFeature(feature)
+            feedback.setProgress(int(i * total))
 
-        #     # Update the progress bar
-        #     feedback.setProgress(int(current * total))
-
-        # To run another Processing algorithm as part of this algorithm, you can use
-        # processing.run(...). Make sure you pass the current context and feedback
-        # to processing.run to ensure that all temporary layer outputs are available
-        # to the executed algorithm, and that the executed algorithm can send feedback
-        # reports to the user (and correctly handle cancellation and progress reports!)
-        # if False:
-        #     buffered_layer = processing.run("native:buffer", {
-        #         'INPUT': dest_id,
-        #         'DISTANCE': 1.5,
-        #         'SEGMENTS': 5,
-        #         'END_CAP_STYLE': 0,
-        #         'JOIN_STYLE': 0,
-        #         'MITER_LIMIT': 2,
-        #         'DISSOLVE': False,
-        #         'OUTPUT': 'memory:'
-        #     }, context=context, feedback=feedback)['OUTPUT']
-
-        # Return the results of the algorithm. In this case our only result is
-        # the feature sink which contains the processed features, but some
-        # algorithms may return multiple feature sinks, calculated numeric
-        # statistics, etc. These should all be included in the returned
-        # dictionary, with keys matching the feature corresponding parameter
-        # or output names.
-        return {self.OUTPUT: dest_id}
+        layer.commitChanges()
+        return {self.OUTPUT: layer}
 
 class DataProcessor():
     def __init__(self,uom_space_url,rm_category_type_url,
@@ -308,41 +383,41 @@ class DataCleaner():
         self.feedback = feedback
     
     def clean_uom_space(self,uom_space_df):
-        uom_space_df['Campus Code']=uom_space_df['Campus Code'].astype(str).str.strip()
-        uom_space_df['Building Code']=uom_space_df['Building Code'].astype(str).str.strip()
-        uom_space_df['Building Name']=uom_space_df['Building Name'].astype(str).str.strip()
-        uom_space_df['Room Type']=uom_space_df['Room Type'].astype(str).str.strip()
-        uom_space_df['Room Category']=uom_space_df['Room Category'].astype(str).str.strip()
-        uom_space_df['Floor Code']=uom_space_df['Floor Code'].astype(str).str.strip()
-        uom_space_df['Room Code']=uom_space_df['Room Code'].astype(str).str.strip()
+        uom_space_df['Campus Code']=uom_space_df['Campus Code'].astype(str).str.strip().str.lower()
+        uom_space_df['Building Code']=uom_space_df['Building Code'].astype(str).str.strip().str.lower()
+        uom_space_df['Building Name']=uom_space_df['Building Name'].astype(str).str.strip().str.lower()
+        uom_space_df['Room Type']=uom_space_df['Room Type'].astype(str).str.strip().str.lower()
+        uom_space_df['Room Category']=uom_space_df['Room Category'].astype(str).str.strip().str.lower()
+        uom_space_df['Floor Code']=uom_space_df['Floor Code'].astype(str).str.strip().str.lower()
+        uom_space_df['Room Code']=uom_space_df['Room Code'].astype(str).str.strip().str.lower()
         return uom_space_df
 
     def clean_rm_category_type(self,rm_category_type_df):
-        rm_category_type_df['Room Type']=rm_category_type_df['Room Type'].astype(str).str.strip()
-        rm_category_type_df['Room Category']=rm_category_type_df['Room Category'].astype(str).str.strip()
+        rm_category_type_df['Room Type']=rm_category_type_df['Room Type'].astype(str).str.strip().str.lower()
+        rm_category_type_df['Room Category']=rm_category_type_df['Room Category'].astype(str).str.strip().str.lower()
         rm_category_type_df['Room Type Abbreviation']=rm_category_type_df['Room Type Abbreviation'].str.lower().str.strip()
         rm_category_type_df['Description']=rm_category_type_df['Description'].str.lower().str.strip()
         rm_category_type_df['Room Type Definition']=rm_category_type_df['Room Type Definition'].str.lower().str.strip()
         return rm_category_type_df
 
     def clean_floor_data(self,floor_df):
-        floor_df['Building Code'] = floor_df['Building Code'].astype(str).str.strip()
-        floor_df['Floor Code'] = floor_df['Floor Code'].astype(str).str.strip()
-        floor_df['Floor Name'] = floor_df['Floor Name'].astype(str).str.strip()
+        floor_df['Building Code'] = floor_df['Building Code'].astype(str).str.strip().str.lower()
+        floor_df['Floor Code'] = floor_df['Floor Code'].astype(str).str.strip().str.lower()
+        floor_df['Floor Name'] = floor_df['Floor Name'].astype(str).str.strip().str.lower()
         return floor_df
 
     def clean_em_location(self,em_location_df):
         em_location_df['Floor Code'] = em_location_df['Floor Code'].astype(int)
-        em_location_df['Floor Code'] = em_location_df['Floor Code'].astype(str).str.strip()
+        em_location_df['Floor Code'] = em_location_df['Floor Code'].astype(str).str.strip().str.lower()
         return em_location_df
 
     def clean_av_equipment(self,av_equipment_df):
-        av_equipment_df['Room Type'] = av_equipment_df['Room Type'].astype(str).str.strip()
-        av_equipment_df['Room Code'] = av_equipment_df['Room Code'].astype(str).str.strip()
-        av_equipment_df['Building Code'] = av_equipment_df['Building Code'].astype(str).str.strip()
-        av_equipment_df['Campus Code'] = av_equipment_df['Campus Code'].astype(str).str.strip()
-        av_equipment_df['Equip. Status'] = av_equipment_df['Equip. Status'].astype(str).str.strip()
-        av_equipment_df['Floor Code'] = av_equipment_df['Floor Code'].astype(int).astype(str).str.strip()
+        av_equipment_df['Room Type'] = av_equipment_df['Room Type'].astype(str).str.strip().str.lower()
+        av_equipment_df['Room Code'] = av_equipment_df['Room Code'].astype(str).str.strip().str.lower()
+        av_equipment_df['Building Code'] = av_equipment_df['Building Code'].astype(str).str.strip().str.lower()
+        av_equipment_df['Campus Code'] = av_equipment_df['Campus Code'].astype(str).str.strip().str.lower()
+        av_equipment_df['Equip. Status'] = av_equipment_df['Equip. Status'].astype(str).str.strip().str.lower()
+        av_equipment_df['Floor Code'] = av_equipment_df['Floor Code'].astype(int).astype(str).str.strip().str.lower()
         return av_equipment_df
 
     def clean_timetable_data(self,timetable_df):
@@ -368,11 +443,11 @@ class DataCleaner():
         meeting_room_usage_df = meeting_room_usage_df[meeting_room_usage_df['Floor Code'].notna()]
         meeting_room_usage_df = meeting_room_usage_df[meeting_room_usage_df['Room Code'].notna()]
 
-        meeting_room_usage_df['Campus Code'] = meeting_room_usage_df['Campus Code'].astype(str).str.strip()
-        meeting_room_usage_df['Building Code'] = meeting_room_usage_df['Building Code'].astype(str).str.strip()
-        meeting_room_usage_df['Building Name'] = meeting_room_usage_df['Building Name'].astype(str).str.strip()
+        meeting_room_usage_df['Campus Code'] = meeting_room_usage_df['Campus Code'].astype(str).str.strip().str.lower()
+        meeting_room_usage_df['Building Code'] = meeting_room_usage_df['Building Code'].astype(str).str.strip().str.lower()
+        meeting_room_usage_df['Building Name'] = meeting_room_usage_df['Building Name'].astype(str).str.strip().str.lower()
         meeting_room_usage_df['Floor Code'] = meeting_room_usage_df['Floor Code'].astype(int).astype(str).str.strip()
-        meeting_room_usage_df['Room Code'] = meeting_room_usage_df['Room Code'].astype(str).str.strip()
+        meeting_room_usage_df['Room Code'] = meeting_room_usage_df['Room Code'].astype(str).str.strip().str.lower()
         return meeting_room_usage_df
 
     
@@ -462,3 +537,22 @@ class DataExtractor():
 
         possible_toilets_df = space_data[space_data['Room Type'].isin(toilet_room_types)]
         return possible_toilets_df
+
+
+class DataFeatures():
+    def __init__(self,feedback):
+        self.feedback = feedback
+
+    def get_meeting_room_capacity(self,data, val):
+        row = data[data['Building Code']==val]
+        if len(row) > 0:
+            return row.iloc[0]['MR_COUNT']
+        else:
+            return None
+
+    def get_employee_count(self,data, val):
+        row = data[data['Building Code']==val]
+        if len(row) > 0:
+            return row.iloc[0]['EMP_COUNT']
+        else:
+            return None
