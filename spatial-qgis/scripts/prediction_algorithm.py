@@ -9,7 +9,7 @@ def normalize_data(data):
 
 def find_building_algorithm(layer, search_key, 
     current_building, radius,
-    objective,penalty):
+    objective, penalty):
     """
     Find the most optimal nearest building
 
