@@ -52,7 +52,7 @@ def find_building_algorithm(layer, search_key,
                 # Meeting rooms objective
                 if objective == 0:
                     # add buildings for which weights exists
-                    if feature['MR_WEIGHTS']:
+                    if feature['MR_WEIGHTS'] != 'NULL':
                         data_obj['weight'] = feature['MR_WEIGHTS']
                         weights.append(data_obj['weight'])
                         distances.append(data_obj['distance'])
@@ -61,7 +61,7 @@ def find_building_algorithm(layer, search_key,
                     
     
     # Step-3: data correlations - TODO
-   
+
     # Step-4: calculate probabilities
     # convert weights into probability distribution
     np_weights = np.array(weights)
