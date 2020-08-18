@@ -5,7 +5,7 @@ from qgis.core import QgsProject
 
 campus_code = "PAR"
 #layer_name = "PAR_BUILDING_OUTLINE"
-layer_name = "HEATMAP_PAR_MR_LAYER"
+layer_name = "Output layer"
 search_key = "BUILD_NO"
 
 layer = QgsProject.instance().mapLayersByName(layer_name)[0]
@@ -17,8 +17,8 @@ layer = QgsProject.instance().mapLayersByName(layer_name)[0]
 top_3_buildings = find_building_algorithm(
                         layer = layer, 
                         search_key = search_key,
-                        current_building = 104, 
-                        radius = 200, 
+                        current_building = 160, 
+                        radius = 100, 
                         objective = 0, 
                         penalty = 0.05)
         
