@@ -79,7 +79,7 @@ for feature in layer.getFeatures():
         weight = float(supply/demand)
         print('weight->'+str(weight))
     else:
-        weight = NULL
+        weight = 'NULL'
         print('weight->'+str(weight))
     attr_value={weightFieldIndex:weight}
     layer_provider.changeAttributeValues({id:attr_value})
