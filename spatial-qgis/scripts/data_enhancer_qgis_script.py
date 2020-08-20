@@ -146,12 +146,12 @@ class DataEnhancer(QgsProcessingAlgorithm):
         if weightFieldIndex != -1:
             layer_provider.deleteAttributes([weightFieldIndex])
             layer.updateFields()
-        layer_provider.addAttributes([QgsField("MR_WEIGHTS",  QVariant.String)])
+        layer_provider.addAttributes([QgsField("MR_WEIGHTS",  QVariant.Double)])
         weightFieldIndex_toilets = layer.fields().indexFromName('TR_WEIGHTS')
         if weightFieldIndex_toilets != -1:
             layer_provider.deleteAttributes([weightFieldIndex_toilets])
             layer.updateFields()
-        layer_provider.addAttributes([QgsField("TR_WEIGHTS",  QVariant.String)])
+        layer_provider.addAttributes([QgsField("TR_WEIGHTS",  QVariant.Double)])
         layer.updateFields()  
         weightFieldIndex = layer_provider.fieldNameIndex('MR_WEIGHTS')
         weightFieldIndex_toilets = layer_provider.fieldNameIndex('TR_WEIGHTS')
@@ -220,11 +220,11 @@ class DataEnhancer(QgsProcessingAlgorithm):
             if supply and demand:
                 weight = float(supply/demand)
             else:
-                weight = 'NULL'
+                weight = QVariant()
             if toilet_supply and toilet_demand:
                 tr_weight = float(toilet_supply/toilet_demand)
             else:
-                tr_weight = 'NULL'
+                tr_weight = QVariant()
             feature['TR_WEIGHTS'] = tr_weight
             feature['MR_WEIGHTS'] = weight
             attr_value={weightFieldIndex:weight,weightFieldIndex_toilets:tr_weight}
