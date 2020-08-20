@@ -215,6 +215,8 @@ class DataEnhancer(QgsProcessingAlgorithm):
             layer_provider.changeAttributeValues({id:attr_value})
             sink.addFeature(feature, QgsFeatureSink.FastInsert)
             feedback.setProgress(int(current * total))
+        layer_provider.deleteAttributes([weightFieldIndex_toilets,weightFieldIndex])
+        layer.updateFields()
         layer.commitChanges()
 
         if False:
