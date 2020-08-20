@@ -25,7 +25,8 @@ from qgis.core import (QgsProcessing,
                        QgsFields,
                        QgsProject,
                        QgsFeature,
-                       QgsVectorLayer)
+                       QgsVectorLayer,
+                       QgsProcessingParameterMapLayer)
 from qgis import processing
 import pandas as pd
 
@@ -37,6 +38,7 @@ class DataEnhancer(QgsProcessingAlgorithm):
     BASE_URL = "base_url"
     CAMPUS_CODE = "campus_code"
     SEARCH_KEY = "search_key"
+    UPDATE = "update"
 
     def tr(self, string):
         return QCoreApplication.translate('Processing', string)
@@ -61,7 +63,7 @@ class DataEnhancer(QgsProcessingAlgorithm):
 
     def initAlgorithm(self, config=None):
         self.addParameter(
-            QgsProcessingParameterFeatureSource(
+            QgsProcessingParameterMapLayer(
                 self.INPUT,
                 self.tr('Input layer'),
                 [QgsProcessing.TypeVectorAnyGeometry]
@@ -84,7 +86,18 @@ class DataEnhancer(QgsProcessingAlgorithm):
                 self.SEARCH_KEY,
                 'Enter Search Key'
             )
+
         )
+         
+        self.addParameter(
+            QgsProcessingParameterBoolean(
+                self.UPDATE,
+                'Update base layer and Do not create new layer'
+            )
+
+        )
+            # 
+
         self.addParameter(
             QgsProcessingParameterFeatureSink(
                 self.OUTPUT,
@@ -92,8 +105,9 @@ class DataEnhancer(QgsProcessingAlgorithm):
             )
         )
 
+
     def processAlgorithm(self, parameters, context, feedback):
-        source = self.parameterAsSource(
+        source = self.parameterAsLayer(
             parameters,
             self.INPUT,
             context
@@ -116,24 +130,28 @@ class DataEnhancer(QgsProcessingAlgorithm):
             context
         )
 
+        update = self.parameterAsString(
+            parameters,
+            self.UPDATE,
+            context
+        )
+
         base_url = base_url.strip()
         campus_code = campus_code.strip().lower()
         search_key = search_key.strip()
-        data = parameters['INPUT'].split('_')
-        input_param = data[0]+"_"+data[1]+"_"+data[2]
-        layer = QgsProject.instance().mapLayersByName(input_param)[0]
+        layer = source
         features = layer.getFeatures()
         layer_provider = layer.dataProvider()
-        weightFieldIndex = source.fields().indexFromName('MR_WEIGHTS')
+        weightFieldIndex = layer.fields().indexFromName('MR_WEIGHTS')
         if weightFieldIndex != -1:
             layer_provider.deleteAttributes([weightFieldIndex])
             layer.updateFields()
-        layer_provider.addAttributes([QgsField("MR_WEIGHTS",  QVariant.Double)])
-        weightFieldIndex_toilets = source.fields().indexFromName('TR_WEIGHTS')
+        layer_provider.addAttributes([QgsField("MR_WEIGHTS",  QVariant.String)])
+        weightFieldIndex_toilets = layer.fields().indexFromName('TR_WEIGHTS')
         if weightFieldIndex_toilets != -1:
             layer_provider.deleteAttributes([weightFieldIndex_toilets])
             layer.updateFields()
-        layer_provider.addAttributes([QgsField("TR_WEIGHTS",  QVariant.Double)])
+        layer_provider.addAttributes([QgsField("TR_WEIGHTS",  QVariant.String)])
         layer.updateFields()  
         weightFieldIndex = layer_provider.fieldNameIndex('MR_WEIGHTS')
         weightFieldIndex_toilets = layer_provider.fieldNameIndex('TR_WEIGHTS')
@@ -194,8 +212,6 @@ class DataEnhancer(QgsProcessingAlgorithm):
         for current, feature in enumerate(features):
             if feedback.isCanceled():
                 break
-            aid = layer_provider.fieldNameIndex('MR_WEIGHTS')
-            tid = layer_provider.fieldNameIndex('TR_WEIGHTS')
             id = feature.id()
             supply = _features.get_meeting_room_capacity(mr_data, feature[search_key])
             demand = _features.get_employee_count(emp_data, feature[search_key])
@@ -213,24 +229,18 @@ class DataEnhancer(QgsProcessingAlgorithm):
             feature['MR_WEIGHTS'] = weight
             attr_value={weightFieldIndex:weight,weightFieldIndex_toilets:tr_weight}
             layer_provider.changeAttributeValues({id:attr_value})
-            sink.addFeature(feature, QgsFeatureSink.FastInsert)
+            if(update == "false"):
+                sink.addFeature(feature, QgsFeatureSink.FastInsert)
             feedback.setProgress(int(current * total))
-        layer_provider.deleteAttributes([weightFieldIndex_toilets,weightFieldIndex])
-        layer.updateFields()
-        layer.commitChanges()
-
-        if False:
-            buffered_layer = processing.run("native:buffer", {
-                'INPUT': dest_id,
-                'DISTANCE': 1.5,
-                'SEGMENTS': 5,
-                'END_CAP_STYLE': 0,
-                'JOIN_STYLE': 0,
-                'MITER_LIMIT': 2,
-                'DISSOLVE': False,
-                'OUTPUT': 'memory:'
-            }, context=context, feedback=feedback)['OUTPUT']
-
+        if (update == "true"):
+            feedback.pushInfo("-----")
+            feedback.pushInfo("STOPPING SCRIPT TO AVOID CREATING NEW LAYER")
+            feedback.pushInfo("-----")
+            raise Exception("--- IGNORE THIS ---")   
+        else:
+            layer_provider.deleteAttributes([weightFieldIndex_toilets,weightFieldIndex])
+            layer.updateFields()
+            layer.commitChanges()
         return {self.OUTPUT: dest_id}
 
 
