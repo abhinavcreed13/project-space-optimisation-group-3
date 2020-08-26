@@ -58,10 +58,22 @@ def find_building_algorithm(layer, search_key,
                         distances.append(data_obj['distance'])
                         select_buildings.append(feature.id())
                         nearest_buildings_info.append(data_obj)
-                    
+                elif objective == 1:
+                    # add buildings for which weights exists
+                    if feature['TR_WEIGHTS'] != QVariant():
+                        data_obj['weight'] = feature['TR_WEIGHTS']
+                        weights.append(data_obj['weight'])
+                        distances.append(data_obj['distance'])
+                        select_buildings.append(feature.id())
+                        nearest_buildings_info.append(data_obj)
     
     # Step-3: data correlations - TODO
-   
+    #print(nearest_buildings_info)
+    for b in nearest_buildings_info:
+        print(b['building_id'])
+        print(b['weight'])
+        print(b['distance'])
+    print("---")
     # Step-4: calculate probabilities
     # convert weights into probability distribution
     np_weights = np.array(weights)
@@ -99,3 +111,67 @@ def find_building_algorithm(layer, search_key,
         final_buildings.append(nearest_buildings_info[b_idx])
         
     return final_buildings
+    
+    
+def find_building_algorithm_2(layer, search_key, 
+    current_building, radius,
+    objective):
+    
+    # budget
+    B = radius
+    
+    # Find target building geometry
+    startingFeature = None
+    for feature in layer.getFeatures():
+        if str(feature[search_key]) == str(current_building):
+            print(feature["NAME"])
+            startingFeature = feature
+            #x = targetGeometry.asMultiPolygon()
+            #print("MultiPolygon: ", x, "Area: ", targetGeometry.area())
+            break
+    
+    if objective == 0:
+        targetRewardKey = "MR_WEIGHTS"
+    elif objective == 1:
+        targetRewardKey = "TR_WEIGHTS"
+        
+    # build graph
+    # < startingNode, nextbuilding, distance, reward >
+    graph = []
+    startingFeatureGEOM = startingFeature.geometry()
+    for feature in layer.getFeatures():
+        if feature.id() != startingFeature.id():
+            dist = feature.geometry().distance(startingFeatureGEOM)
+            reward = feature[targetRewardKey]
+            if feature[targetRewardKey] == None:
+                reward = 0
+            node = (startingFeature, feature, dist, reward)
+            graph.append(node)
+    
+    # CST - simple algo
+    
+    best_3_nodes = []
+    
+    while len(best_3_nodes) < 3:
+        r_best = 0
+        r_node = ()
+        for node in graph:
+            # sample a node
+            v_s, v_e, routeLength, reward = node
+            #if routeLength <= B:
+                #print(v_e['BUILD_NO'], v_e['NAME'], routeLength, reward)
+            if routeLength <= B and reward > r_best and node not in best_3_nodes:
+                r_best = reward
+                r_node = node
+        #print(r_node)
+        best_3_nodes.append(r_node)
+        #break
+    
+    #for node in best_3_nodes:
+        #print(node[1]['NAME'])
+        #print(node[1]['BUILD_NO'])
+            
+    return best_3_nodes
+        
+        
+        
