@@ -33,6 +33,8 @@ from qgis.utils import iface
 from PyQt5.QtGui import QColor
 from scipy.special import softmax
 import sys
+from random import randint
+import heapq
 
 # ------------------------------------------------------------------
 # Reset so get full traceback next time you run the script and a "real"
@@ -252,10 +254,11 @@ class PredictionAlgorithm(QgsProcessingAlgorithm):
         #                 int(objective), 
         #                 float(penalty))
 
-        top_3_nodes = _runner.find_building_algorithm_AOr(
+        top_k_nodes = _runner.find_building_algorithm_AOr(
                         int(current_building), 
                         int(radius), 
-                        int(objective))
+                        int(objective),
+                        k = 3)
         
         iface.mapCanvas().setSelectionColor(QColor("green"))
         selected_fids = []
@@ -268,17 +271,56 @@ class PredictionAlgorithm(QgsProcessingAlgorithm):
         #     feedback.pushInfo('#{0} - {2}, {1}, {3:.2f} meters'.format(idx+1, building['building_name'], building['building_id'], building['distance']))
         #     selected_fids.append(building['feature_obj'].id())
 
-        for idx, node in enumerate(top_3_nodes):
+        for idx, node_tuple in enumerate(top_k_nodes):
             #feedback.pushInfo(str(building))
-            feedback.pushInfo('#{0} - {2}, {1}, cost={3:.2f}, reward={4:.3f}'.format(idx+1, 
-                                node[1]['NAME'], node[1]['BUILD_NO'], node[2], node[3]))
-            selected_fids.append(node[1].id())
+            reward, cost, node = node_tuple
+            feedback.pushInfo('#{0} - {2}, {1}, cost={3:.2f}, reward={4:.7f}'.format(idx+1, 
+                                node['NAME'], node['BUILD_NO'], cost, reward))
+            selected_fids.append(node.id())
             
         layer.select(selected_fids)
         feedback.pushInfo("-----")
         feedback.pushInfo("STOPPING SCRIPT TO AVOID CREATING NEW LAYER")
         feedback.pushInfo("-----")
-        raise SoftHalt()
+        raise Exception(" --- IGNORE ---")
+
+class PriorityQueue:
+    """
+      Implements a priority queue data structure. Each inserted item
+      has a priority associated with it and the client is usually interested
+      in quick retrieval of the lowest-priority item in the queue. This
+      data structure allows O(1) access to the lowest-priority item.
+    """
+    def  __init__(self):
+        self.heap = []
+        self.count = 0
+
+    def push(self, item, priority):
+        entry = (priority, self.count, item)
+        heapq.heappush(self.heap, entry)
+        self.count += 1
+
+    def pop(self):
+        (_, _, item) = heapq.heappop(self.heap)
+        return item
+
+    def isEmpty(self):
+        return len(self.heap) == 0
+
+    def update(self, item, priority):
+        # If item already in priority queue with higher priority, update its priority and rebuild the heap.
+        # If item already in priority queue with equal or lower priority, do nothing.
+        # If item not in priority queue, do the same thing as self.push.
+        for index, (p, c, i) in enumerate(self.heap):
+            if i == item:
+                if p <= priority:
+                    break
+                del self.heap[index]
+                self.heap.append((priority, c, item))
+                heapq.heapify(self.heap)
+                break
+        else:
+            self.push(item, priority)
         
 class PredictionAlgorithmLogic():
 
@@ -398,7 +440,7 @@ class PredictionAlgorithmLogic():
     # CSP using anytime orienteering
     def find_building_algorithm_AOr(self, 
                                     current_building, radius,
-                                    objective):
+                                    objective, k=3):
         
         layer = self.layer
         search_key = self.search_key
@@ -416,45 +458,50 @@ class PredictionAlgorithmLogic():
                 #print("MultiPolygon: ", x, "Area: ", targetGeometry.area())
                 break
         
-        if objective == 0:
-            targetRewardKey = "MR_WEIGHTS"
-        elif objective == 1:
-            targetRewardKey = "TR_WEIGHTS"
-            
-        # build graph
-        # < startingNode, nextbuilding, distance, reward >
+        # build specialized graph
+        # < startingNode, nextbuilding >
         graph = []
-        startingFeatureGEOM = startingFeature.geometry()
         for feature in layer.getFeatures():
             if feature.id() != startingFeature.id():
-                dist = feature.geometry().distance(startingFeatureGEOM)
-                reward = feature[targetRewardKey]
-                if feature[targetRewardKey] == None:
-                    reward = 0
-                node = (startingFeature, feature, dist, reward)
+                node = (startingFeature, feature)
+                #print(node[1]['TR_WEIGHTS'])
                 graph.append(node)
         
         # CST - simple algo
+        def get_reward(node, objective, factors):
+            if objective == 0:
+                targetRewardKey = "MR_WEIGHTS"
+            elif objective == 1:
+                targetRewardKey = "TR_WEIGHTS"
+            reward = node[targetRewardKey]
+            if node[targetRewardKey] == None:
+                reward = 0
+            return reward
+            
+        def get_cost(node1, node2):
+            return node2.geometry().distance(node1.geometry())
         
-        best_3_nodes = []
+        def get_delta():
+            return randint(1,99)
         
-        while len(best_3_nodes) < 3:
-            r_best = 0
-            r_node = ()
-            for node in graph:
-                # sample a node
-                v_s, v_e, routeLength, reward = node
-                #if routeLength <= B:
-                    #print(v_e['BUILD_NO'], v_e['NAME'], routeLength, reward)
-                if routeLength <= B and reward > r_best and node not in best_3_nodes:
-                    r_best = reward
-                    r_node = node
-            #print(r_node)
-            best_3_nodes.append(r_node)
-            #break
-        
-        #for node in best_3_nodes:
-            #print(node[1]['NAME'])
-            #print(node[1]['BUILD_NO'])
-                
-        return best_3_nodes
+        # <reward, cost, node>
+        budget_nodes_queue = PriorityQueue()
+        best_k = []
+        for node in graph:
+            v_s, v_i = node
+            cost = get_cost(v_s, v_i)
+            reward = get_reward(v_i, objective, {})
+            delta = get_delta()
+            if cost <= B + delta:
+                priority = -1 * reward
+                budget_nodes_queue.push((reward, cost, v_i), priority)
+            
+        # get k-optimal nodes
+        extracted_k = 0
+        while not budget_nodes_queue.isEmpty():
+            if extracted_k > 2:
+                break
+            best_k.append(budget_nodes_queue.pop())
+            extracted_k += 1
+
+        return best_k

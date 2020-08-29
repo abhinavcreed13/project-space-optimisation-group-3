@@ -3,6 +3,47 @@
 from PyQt5.QtGui import QColor
 import numpy as np
 from scipy.special import softmax
+from heapq import nlargest
+from random import randint
+import heapq
+
+class PriorityQueue:
+    """
+      Implements a priority queue data structure. Each inserted item
+      has a priority associated with it and the client is usually interested
+      in quick retrieval of the lowest-priority item in the queue. This
+      data structure allows O(1) access to the lowest-priority item.
+    """
+    def  __init__(self):
+        self.heap = []
+        self.count = 0
+
+    def push(self, item, priority):
+        entry = (priority, self.count, item)
+        heapq.heappush(self.heap, entry)
+        self.count += 1
+
+    def pop(self):
+        (_, _, item) = heapq.heappop(self.heap)
+        return item
+
+    def isEmpty(self):
+        return len(self.heap) == 0
+
+    def update(self, item, priority):
+        # If item already in priority queue with higher priority, update its priority and rebuild the heap.
+        # If item already in priority queue with equal or lower priority, do nothing.
+        # If item not in priority queue, do the same thing as self.push.
+        for index, (p, c, i) in enumerate(self.heap):
+            if i == item:
+                if p <= priority:
+                    break
+                del self.heap[index]
+                self.heap.append((priority, c, item))
+                heapq.heapify(self.heap)
+                break
+        else:
+            self.push(item, priority)
 
 def normalize_data(data):
     return (data - np.min(data)) / (np.max(data) - np.min(data))
@@ -115,7 +156,7 @@ def find_building_algorithm(layer, search_key,
     
 def find_building_algorithm_2(layer, search_key, 
     current_building, radius,
-    objective):
+    objective, k=3):
     
     # budget
     B = radius
@@ -130,48 +171,51 @@ def find_building_algorithm_2(layer, search_key,
             #print("MultiPolygon: ", x, "Area: ", targetGeometry.area())
             break
     
-    if objective == 0:
-        targetRewardKey = "MR_WEIGHTS"
-    elif objective == 1:
-        targetRewardKey = "TR_WEIGHTS"
-        
     # build graph
-    # < startingNode, nextbuilding, distance, reward >
+    # < startingNode, nextbuilding >
     graph = []
-    startingFeatureGEOM = startingFeature.geometry()
     for feature in layer.getFeatures():
         if feature.id() != startingFeature.id():
-            dist = feature.geometry().distance(startingFeatureGEOM)
-            reward = feature[targetRewardKey]
-            if feature[targetRewardKey] == None:
-                reward = 0
-            node = (startingFeature, feature, dist, reward)
+            node = (startingFeature, feature)
+            #print(node[1]['TR_WEIGHTS'])
             graph.append(node)
     
     # CST - simple algo
+    def get_reward(node, objective, factors):
+        if objective == 0:
+            targetRewardKey = "MR_WEIGHTS"
+        elif objective == 1:
+            targetRewardKey = "TR_WEIGHTS"
+        reward = node[targetRewardKey]
+        if node[targetRewardKey] == None:
+            reward = 0
+        return reward
+        
+    def get_cost(node1, node2):
+        return node2.geometry().distance(node1.geometry())
     
-    best_3_nodes = []
+    def get_delta():
+        return randint(1,99)
     
-    while len(best_3_nodes) < 3:
-        r_best = 0
-        r_node = ()
-        for node in graph:
-            # sample a node
-            v_s, v_e, routeLength, reward = node
-            #if routeLength <= B:
-                #print(v_e['BUILD_NO'], v_e['NAME'], routeLength, reward)
-            if routeLength <= B and reward > r_best and node not in best_3_nodes:
-                r_best = reward
-                r_node = node
-        #print(r_node)
-        best_3_nodes.append(r_node)
-        #break
-    
-    #for node in best_3_nodes:
-        #print(node[1]['NAME'])
-        #print(node[1]['BUILD_NO'])
+    # <reward, node>
+    budget_nodes_queue = PriorityQueue()
+    best_k = []
+    for node in graph:
+        # sample a node
+        v_s, v_i = node
+        cost = get_cost(v_s, v_i)
+        reward = get_reward(v_i, objective, {})
+        delta = get_delta()
+        if cost <= B + delta:
+            priority = -1 * reward
+            budget_nodes_queue.push((reward, cost, v_i), priority)
             
-    return best_3_nodes
-        
-        
-        
+    # get k-optimal nodes
+    extracted_k = 0
+    while not budget_nodes_queue.isEmpty():
+        if extracted_k > 2:
+            break
+        best_k.append(budget_nodes_queue.pop())
+        extracted_k += 1
+
+    return best_k
