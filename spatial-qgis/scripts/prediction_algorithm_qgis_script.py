@@ -11,7 +11,7 @@
 ***************************************************************************
 """
 
-from qgis.PyQt.QtCore import QCoreApplication
+from qgis.PyQt.QtCore import QCoreApplication, QVariant
 from qgis.core import (QgsProcessing,
                        QgsFeatureSink,
                        QgsProcessingException,
@@ -33,6 +33,20 @@ from qgis.utils import iface
 from PyQt5.QtGui import QColor
 from scipy.special import softmax
 import sys
+from random import randint
+import heapq
+
+# ------------------------------------------------------------------
+# Reset so get full traceback next time you run the script and a "real"
+# exception occurs
+if hasattr (sys, 'tracebacklimit'):
+    del sys.tracebacklimit
+
+# ------------------------------------------------------------------
+# Raise this class for "soft halt" with minimum traceback.
+class SoftHalt (Exception):
+    def __init__ (self):
+        sys.tracebacklimit = 0
 
 class PredictionAlgorithm(QgsProcessingAlgorithm):
     """
@@ -159,13 +173,13 @@ class PredictionAlgorithm(QgsProcessingAlgorithm):
             )
         )
 
-        self.addParameter(
-            QgsProcessingParameterString(
-                self.PENALTY,
-                'Enter penalty',
-                defaultValue="0.05"
-            )
-        )
+        # self.addParameter(
+        #     QgsProcessingParameterString(
+        #         self.PENALTY,
+        #         'Enter penalty',
+        #         defaultValue="0.05"
+        #     )
+        # )
 
         # We add a feature sink in which to store our processed features (this
         # usually takes the form of a newly created vector layer when the
@@ -221,11 +235,11 @@ class PredictionAlgorithm(QgsProcessingAlgorithm):
             context
         )
 
-        penalty = self.parameterAsString(
-            parameters,
-            self.PENALTY,
-            context
-        )
+        # penalty = self.parameterAsString(
+        #     parameters,
+        #     self.PENALTY,
+        #     context
+        # )
         
         # using provided layer - connected via reference
         layer = source
@@ -234,96 +248,80 @@ class PredictionAlgorithm(QgsProcessingAlgorithm):
         _runner = PredictionAlgorithmLogic(feedback, layer, search_key)
 
         # run algo
-        top_3_buildings = _runner.find_building_algorithm(
+        # top_3_buildings = _runner.find_building_algorithm(
+        #                 int(current_building), 
+        #                 int(radius), 
+        #                 int(objective), 
+        #                 float(penalty))
+
+        top_k_nodes = _runner.find_building_algorithm_AOr(
                         int(current_building), 
                         int(radius), 
-                        int(objective), 
-                        float(penalty))
+                        int(objective),
+                        k = 3)
         
         iface.mapCanvas().setSelectionColor(QColor("green"))
         selected_fids = []
         layer.removeSelection()
         feedback.pushInfo("")
         feedback.pushInfo("-- Top 3 Buildings Found --")
-        for idx, building in enumerate(top_3_buildings):
+        
+        # for idx, building in enumerate(top_3_buildings):
+        #     #feedback.pushInfo(str(building))
+        #     feedback.pushInfo('#{0} - {2}, {1}, {3:.2f} meters'.format(idx+1, building['building_name'], building['building_id'], building['distance']))
+        #     selected_fids.append(building['feature_obj'].id())
+
+        for idx, node_tuple in enumerate(top_k_nodes):
             #feedback.pushInfo(str(building))
-            feedback.pushInfo('#{0} - {2}, {1}, {3:.2f} meters'.format(idx+1, building['building_name'], building['building_id'], building['distance']))
-            selected_fids.append(building['feature_obj'].id())
+            reward, cost, node = node_tuple
+            feedback.pushInfo('#{0} - {2}, {1}, cost={3:.2f}, reward={4:.7f}'.format(idx+1, 
+                                node['NAME'], node['BUILD_NO'], cost, reward))
+            selected_fids.append(node.id())
             
         layer.select(selected_fids)
         feedback.pushInfo("-----")
         feedback.pushInfo("STOPPING SCRIPT TO AVOID CREATING NEW LAYER")
         feedback.pushInfo("-----")
-        raise Exception("--- IGNORE THIS ---")
+        raise Exception(" --- IGNORE ---")
 
-        # If source was not found, throw an exception to indicate that the algorithm
-        # encountered a fatal error. The exception text can be any string, but in this
-        # case we use the pre-built invalidSourceError method to return a standard
-        # helper text for when a source cannot be evaluated
-        # if source is None:
-        #     raise QgsProcessingException(self.invalidSourceError(parameters, self.INPUT))
+class PriorityQueue:
+    """
+      Implements a priority queue data structure. Each inserted item
+      has a priority associated with it and the client is usually interested
+      in quick retrieval of the lowest-priority item in the queue. This
+      data structure allows O(1) access to the lowest-priority item.
+    """
+    def  __init__(self):
+        self.heap = []
+        self.count = 0
 
-        # # (sink, dest_id) = self.parameterAsSink(
-        # #     parameters,
-        # #     self.OUTPUT,
-        # #     context,
-        # #     source.fields(),
-        # #     source.wkbType(),
-        # #     source.sourceCrs()
-        # # )
+    def push(self, item, priority):
+        entry = (priority, self.count, item)
+        heapq.heappush(self.heap, entry)
+        self.count += 1
 
-        # # Send some information to the user
-        # feedback.pushInfo('CRS is {}'.format(source.sourceCrs().authid()))
+    def pop(self):
+        (_, _, item) = heapq.heappop(self.heap)
+        return item
 
-        # # If sink was not created, throw an exception to indicate that the algorithm
-        # # encountered a fatal error. The exception text can be any string, but in this
-        # # case we use the pre-built invalidSinkError method to return a standard
-        # # helper text for when a sink cannot be evaluated
-        # if sink is None:
-        #     raise QgsProcessingException(self.invalidSinkError(parameters, self.OUTPUT))
+    def isEmpty(self):
+        return len(self.heap) == 0
 
-        # # Compute the number of steps to display within the progress bar and
-        # # get features from source
-        # total = 100.0 / source.featureCount() if source.featureCount() else 0
-        # features = source.getFeatures()
-
-        # for current, feature in enumerate(features):
-        #     # Stop the algorithm if cancel button has been clicked
-        #     if feedback.isCanceled():
-        #         break
-
-        #     # Add a feature in the sink
-        #     sink.addFeature(feature, QgsFeatureSink.FastInsert)
-
-        #     # Update the progress bar
-        #     feedback.setProgress(int(current * total))
-
-        # # To run another Processing algorithm as part of this algorithm, you can use
-        # # processing.run(...). Make sure you pass the current context and feedback
-        # # to processing.run to ensure that all temporary layer outputs are available
-        # # to the executed algorithm, and that the executed algorithm can send feedback
-        # # reports to the user (and correctly handle cancellation and progress reports!)
-        # if False:
-        #     buffered_layer = processing.run("native:buffer", {
-        #         'INPUT': dest_id,
-        #         'DISTANCE': 1.5,
-        #         'SEGMENTS': 5,
-        #         'END_CAP_STYLE': 0,
-        #         'JOIN_STYLE': 0,
-        #         'MITER_LIMIT': 2,
-        #         'DISSOLVE': False,
-        #         'OUTPUT': 'memory:'
-        #     }, context=context, feedback=feedback)['OUTPUT']
-
-        # # Return the results of the algorithm. In this case our only result is
-        # # the feature sink which contains the processed features, but some
-        # # algorithms may return multiple feature sinks, calculated numeric
-        # # statistics, etc. These should all be included in the returned
-        # # dictionary, with keys matching the feature corresponding parameter
-        # # or output names.
-        # return {self.OUTPUT: dest_id}
-        #return {}
-
+    def update(self, item, priority):
+        # If item already in priority queue with higher priority, update its priority and rebuild the heap.
+        # If item already in priority queue with equal or lower priority, do nothing.
+        # If item not in priority queue, do the same thing as self.push.
+        for index, (p, c, i) in enumerate(self.heap):
+            if i == item:
+                if p <= priority:
+                    break
+                del self.heap[index]
+                self.heap.append((priority, c, item))
+                heapq.heapify(self.heap)
+                break
+        else:
+            self.push(item, priority)
+        
 class PredictionAlgorithmLogic():
 
     def __init__(self, feedback, layer, search_key):
@@ -382,8 +380,17 @@ class PredictionAlgorithmLogic():
                     # Meeting rooms objective
                     if objective == 0:
                         # add buildings for which weights exists
-                        if feature['MR_WEIGHTS'] != 'NULL':
+                        if feature['MR_WEIGHTS'] != QVariant():
                             data_obj['weight'] = feature['MR_WEIGHTS']
+                            weights.append(data_obj['weight'])
+                            distances.append(data_obj['distance'])
+                            select_buildings.append(feature.id())
+                            nearest_buildings_info.append(data_obj)
+                    # Toilet facilities objective
+                    elif objective == 1:
+                        # add buildings for which weights exists
+                        if feature['TR_WEIGHTS'] != QVariant():
+                            data_obj['weight'] = feature['TR_WEIGHTS']
                             weights.append(data_obj['weight'])
                             distances.append(data_obj['distance'])
                             select_buildings.append(feature.id())
@@ -429,3 +436,72 @@ class PredictionAlgorithmLogic():
             final_buildings.append(nearest_buildings_info[b_idx])
             
         return final_buildings
+
+    # CSP using anytime orienteering
+    def find_building_algorithm_AOr(self, 
+                                    current_building, radius,
+                                    objective, k=3):
+        
+        layer = self.layer
+        search_key = self.search_key
+        
+        # budget
+        B = radius
+        
+        # Find target building geometry
+        startingFeature = None
+        for feature in layer.getFeatures():
+            if str(feature[search_key]) == str(current_building):
+                print(feature["NAME"])
+                startingFeature = feature
+                #x = targetGeometry.asMultiPolygon()
+                #print("MultiPolygon: ", x, "Area: ", targetGeometry.area())
+                break
+        
+        # build specialized graph
+        # < startingNode, nextbuilding >
+        graph = []
+        for feature in layer.getFeatures():
+            if feature.id() != startingFeature.id():
+                node = (startingFeature, feature)
+                #print(node[1]['TR_WEIGHTS'])
+                graph.append(node)
+        
+        # CST - simple algo
+        def get_reward(node, objective, factors):
+            if objective == 0:
+                targetRewardKey = "MR_WEIGHTS"
+            elif objective == 1:
+                targetRewardKey = "TR_WEIGHTS"
+            reward = node[targetRewardKey]
+            if node[targetRewardKey] == None:
+                reward = 0
+            return reward
+            
+        def get_cost(node1, node2):
+            return node2.geometry().distance(node1.geometry())
+        
+        def get_delta():
+            return randint(1,99)
+        
+        # <reward, cost, node>
+        budget_nodes_queue = PriorityQueue()
+        best_k = []
+        for node in graph:
+            v_s, v_i = node
+            cost = get_cost(v_s, v_i)
+            reward = get_reward(v_i, objective, {})
+            delta = get_delta()
+            if cost <= B + delta:
+                priority = -1 * reward
+                budget_nodes_queue.push((reward, cost, v_i), priority)
+            
+        # get k-optimal nodes
+        extracted_k = 0
+        while not budget_nodes_queue.isEmpty():
+            if extracted_k > 2:
+                break
+            best_k.append(budget_nodes_queue.pop())
+            extracted_k += 1
+
+        return best_k

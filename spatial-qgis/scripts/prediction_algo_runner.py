@@ -5,7 +5,7 @@ from qgis.core import QgsProject
 
 campus_code = "PAR"
 #layer_name = "PAR_BUILDING_OUTLINE"
-layer_name = "Output layer"
+layer_name = "ENHANCED_TR"
 search_key = "BUILD_NO"
 
 layer = QgsProject.instance().mapLayersByName(layer_name)[0]
@@ -14,19 +14,20 @@ layer = QgsProject.instance().mapLayersByName(layer_name)[0]
 # 400m radius
 # objective - meeting rooms
 # penalty - 0.05
-top_3_buildings = find_building_algorithm(
+top_k_nodes = find_building_algorithm_2(
                         layer = layer, 
                         search_key = search_key,
-                        current_building = 160, 
-                        radius = 100, 
-                        objective = 0, 
-                        penalty = 0.05)
+                        current_building = 220, 
+                        radius = 200, 
+                        objective = 1,
+                        k=3)
+                        #penalty = 0.05)
         
 # select top 3 buildings
 iface.mapCanvas().setSelectionColor(QColor("green"))
 selected_fids = []
-for building in top_3_buildings:
-    print(building)
-    selected_fids.append(building['feature_obj'].id())
+for node in top_k_nodes:
+    print(node[2]['BUILD_NO'], node[2]['NAME'], node[0], node[1])
+    selected_fids.append(node[2].id())
     
 layer.select(selected_fids)

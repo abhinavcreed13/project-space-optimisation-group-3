@@ -159,13 +159,13 @@ class DataProcessor():
         self.meeting_room_usage_url = meeting_room_usage_url
 
     def load_data(self):
-        self.uom_space_df = pd.read_excel(uom_space_url)
-        self.rm_category_type_df = pd.read_excel(rm_category_type_url)
-        self.em_location_df = pd.read_excel(em_location_url)
-        self.av_equipment_df = pd.read_excel(av_equipment_url)
-        self.timetable_df = pd.read_excel(timetable_2020_url, delim_whitespace=True)
-        self.floor_df = pd.read_excel(floor_name_url)
-        self.meeting_room_usage_df = pd.read_excel(meeting_room_usage_url)
+        self.uom_space_df = pd.read_excel(self.uom_space_url)
+        self.rm_category_type_df = pd.read_excel(self.rm_category_type_url)
+        self.em_location_df = pd.read_excel(self.em_location_url)
+        self.av_equipment_df = pd.read_excel(self.av_equipment_url)
+        self.timetable_df = pd.read_excel(self.timetable_2020_url, delim_whitespace=True)
+        self.floor_df = pd.read_excel(self.floor_name_url)
+        self.meeting_room_usage_df = pd.read_excel(self.meeting_room_usage_url)
         print('Data loaded successfully!')
         # data shapes
         print("UOM space shape:"+str(self.uom_space_df.shape))
