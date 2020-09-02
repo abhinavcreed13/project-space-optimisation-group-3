@@ -176,65 +176,65 @@ class DataEnhancer(QgsProcessingAlgorithm):
         layer_provider.addAttributes([QgsField("TR_WEIGHTS",  QVariant.Double)])
         layer.updateFields() 
 
-        idx = layer.fields().indexFromName('MR_CNT')
-        if idx != -1:
-            layer_provider.deleteAttributes([idx])
-            layer.updateFields()
-        layer_provider.addAttributes([QgsField("MR_CNT",  QVariant.Double)])
-        layer.updateFields()
+        # idx = layer.fields().indexFromName('MR_CNT')
+        # if idx != -1:
+        #     layer_provider.deleteAttributes([idx])
+        #     layer.updateFields()
+        # layer_provider.addAttributes([QgsField("MR_CNT",  QVariant.Double)])
+        # layer.updateFields()
 
-        idx = layer.fields().indexFromName('MR_CAP')
-        if idx != -1:
-            layer_provider.deleteAttributes([idx])
-            layer.updateFields()
-        layer_provider.addAttributes([QgsField("MR_CAP",  QVariant.Double)])
-        layer.updateFields()
+        # idx = layer.fields().indexFromName('MR_CAP')
+        # if idx != -1:
+        #     layer_provider.deleteAttributes([idx])
+        #     layer.updateFields()
+        # layer_provider.addAttributes([QgsField("MR_CAP",  QVariant.Double)])
+        # layer.updateFields()
 
-        idx = layer.fields().indexFromName('TR_CNT')
-        if idx != -1:
-            layer_provider.deleteAttributes([idx])
-            layer.updateFields()
-        layer_provider.addAttributes([QgsField("TR_CNT",  QVariant.Double)])
-        layer.updateFields()
+        # idx = layer.fields().indexFromName('TR_CNT')
+        # if idx != -1:
+        #     layer_provider.deleteAttributes([idx])
+        #     layer.updateFields()
+        # layer_provider.addAttributes([QgsField("TR_CNT",  QVariant.Double)])
+        # layer.updateFields()
 
-        idx = layer.fields().indexFromName('TR_CAP')
-        if idx != -1:
-            layer_provider.deleteAttributes([idx])
-            layer.updateFields()
-        layer_provider.addAttributes([QgsField("TR_CAP",  QVariant.Double)])
-        layer.updateFields()
+        # idx = layer.fields().indexFromName('TR_CAP')
+        # if idx != -1:
+        #     layer_provider.deleteAttributes([idx])
+        #     layer.updateFields()
+        # layer_provider.addAttributes([QgsField("TR_CAP",  QVariant.Double)])
+        # layer.updateFields()
 
-        idx = layer.fields().indexFromName('EMP_CNT')
-        if idx != -1:
-            layer_provider.deleteAttributes([idx])
-            layer.updateFields()
-        layer_provider.addAttributes([QgsField("EMP_CNT",  QVariant.Double)])
-        layer.updateFields()
+        # idx = layer.fields().indexFromName('EMP_CNT')
+        # if idx != -1:
+        #     layer_provider.deleteAttributes([idx])
+        #     layer.updateFields()
+        # layer_provider.addAttributes([QgsField("EMP_CNT",  QVariant.Double)])
+        # layer.updateFields()
 
-        idx = layer.fields().indexFromName('EQP_CNT')
-        if idx != -1:
-            layer_provider.deleteAttributes([idx])
-            layer.updateFields()
-        layer_provider.addAttributes([QgsField("EQP_CNT",  QVariant.Double)])
-        layer.updateFields()
+        # idx = layer.fields().indexFromName('EQP_CNT')
+        # if idx != -1:
+        #     layer_provider.deleteAttributes([idx])
+        #     layer.updateFields()
+        # layer_provider.addAttributes([QgsField("EQP_CNT",  QVariant.Double)])
+        # layer.updateFields()
 
-        idx = layer.fields().indexFromName('STU_CNT')
-        if idx != -1:
-            layer_provider.deleteAttributes([idx])
-            layer.updateFields()
-        layer_provider.addAttributes([QgsField("STU_CNT",  QVariant.Double)])
-        layer.updateFields()
+        # idx = layer.fields().indexFromName('STU_CNT')
+        # if idx != -1:
+        #     layer_provider.deleteAttributes([idx])
+        #     layer.updateFields()
+        # layer_provider.addAttributes([QgsField("STU_CNT",  QVariant.Double)])
+        # layer.updateFields()
         
         #idx1 = layer_provider.fieldNameIndex('MR_CNT')
         weightFieldIndex = layer_provider.fieldNameIndex('MR_WEIGHTS')
         weightFieldIndex_toilets = layer_provider.fieldNameIndex('TR_WEIGHTS')
-        idx1 = layer_provider.fieldNameIndex('MR_CNT')
-        idx2 = layer_provider.fieldNameIndex('MR_CAP')
-        idx3 = layer_provider.fieldNameIndex('TR_CNT')
-        idx4 = layer_provider.fieldNameIndex('TR_CAP')
-        idx5 = layer_provider.fieldNameIndex('EMP_CNT')
-        idx6 = layer_provider.fieldNameIndex('EQP_CNT')
-        idx7 = layer_provider.fieldNameIndex('STU_CNT')
+        # idx1 = layer_provider.fieldNameIndex('MR_CNT')
+        # idx2 = layer_provider.fieldNameIndex('MR_CAP')
+        # idx3 = layer_provider.fieldNameIndex('TR_CNT')
+        # idx4 = layer_provider.fieldNameIndex('TR_CAP')
+        # idx5 = layer_provider.fieldNameIndex('EMP_CNT')
+        # idx6 = layer_provider.fieldNameIndex('EQP_CNT')
+        # idx7 = layer_provider.fieldNameIndex('STU_CNT')
 
         # uom_space_url = base_url+'uom-space.xlsx'
         # rm_category_type_url = base_url+'rm-category-type-cleaned.xlsx'
@@ -316,23 +316,23 @@ class DataEnhancer(QgsProcessingAlgorithm):
                 tr_weight = QVariant()          
             feature['TR_WEIGHTS'] = weight        
             feature['MR_WEIGHTS'] = tr_weight
-            feature['MR_CNT'] = QVariant()
-            feature['MR_CAP'] = QVariant()
-            feature['TR_CNT'] = QVariant()
-            feature['TR_CAP'] = QVariant()
-            feature['EMP_CNT'] = QVariant()
-            feature['EQP_CNT'] = QVariant()
-            feature['STU_CNT'] = QVariant()
+            # feature['MR_CNT'] = QVariant()
+            # feature['MR_CAP'] = QVariant()
+            # feature['TR_CNT'] = QVariant()
+            # feature['TR_CAP'] = QVariant()
+            # feature['EMP_CNT'] = QVariant()
+            # feature['EQP_CNT'] = QVariant()
+            # feature['STU_CNT'] = QVariant()
             attr_value={
                 weightFieldIndex: QVariant(),
-                weightFieldIndex_toilets: QVariant(),
-                idx1: QVariant(),
-                idx2: QVariant(),
-                idx3: QVariant(),
-                idx4: QVariant(),
-                idx5: QVariant(),
-                idx6: QVariant(),
-                idx7: QVariant()
+                weightFieldIndex_toilets: QVariant()
+                # idx1: QVariant(),
+                # idx2: QVariant(),
+                # idx3: QVariant(),
+                # idx4: QVariant(),
+                # idx5: QVariant(),
+                # idx6: QVariant(),
+                # idx7: QVariant()
             }
             #attr_value = _manager.update_feature(feature, attr_value)
             layer_provider.changeAttributeValues({id:attr_value})
@@ -346,8 +346,8 @@ class DataEnhancer(QgsProcessingAlgorithm):
             feedback.pushInfo("-----")
             raise Exception("--- IGNORE THIS ---")   
         else:
-            layer_provider.deleteAttributes([idx1, idx2, idx3, idx4, idx5, idx6, idx7, weightFieldIndex_toilets,weightFieldIndex])
-            # layer_provider.deleteAttributes([weightFieldIndex_toilets,weightFieldIndex])
+            # layer_provider.deleteAttributes([idx1, idx2, idx3, idx4, idx5, idx6, idx7, weightFieldIndex_toilets,weightFieldIndex])
+            layer_provider.deleteAttributes([weightFieldIndex_toilets,weightFieldIndex])
             layer.updateFields()
             layer.commitChanges()
         
