@@ -48,6 +48,91 @@ class PriorityQueue:
 def normalize_data(data):
     return (data - np.min(data)) / (np.max(data) - np.min(data))
 
+class DataStats():
+    
+    def __init__(self, layer):
+        # collect stats
+        self.total_equipments = 0
+        for feature in layer.getFeatures():
+            if feature["EQP_CNT"]:
+                self.total_equipments += feature["EQP_CNT"]
+
+def find_building_algorithm_2(layer, search_key, 
+    current_building, radius,
+    objective, k=3, factors = {}, stats = None):
+    
+    # budget
+    B = radius
+    
+    # Find target building geometry
+    startingFeature = None
+    for feature in layer.getFeatures():
+        if str(feature[search_key]) == str(current_building):
+            print(feature["NAME"])
+            startingFeature = feature
+            #x = targetGeometry.asMultiPolygon()
+            #print("MultiPolygon: ", x, "Area: ", targetGeometry.area())
+            break
+    
+    # build graph
+    # < startingNode, nextbuilding >
+    graph = []
+    for feature in layer.getFeatures():
+        if feature.id() != startingFeature.id():
+            node = (startingFeature, feature)
+            #print(node[1]['TR_WEIGHTS'])
+            graph.append(node)
+    
+    # CST - simple algo
+    # {
+    #   WITH_EQUIPMENTS: True/False
+    # }
+    def get_reward(node, objective, factors):
+        if objective == 0:
+            targetRewardKey = "MR_WEIGHTS"
+        elif objective == 1:
+            targetRewardKey = "TR_WEIGHTS"
+        reward = node[targetRewardKey]
+        if node[targetRewardKey] == None:
+            return 0
+            
+        # factors adjustments
+        if factors["WITH_EQUIPMENTS"]:
+            if node["EQP_CNT"]:
+                total_eqp = stats.total_equipments
+                adj = node["EQP_CNT"]/total_eqp
+                reward = reward * adj
+            else:
+                reward = reward * 0
+        return reward
+        
+    def get_cost(node1, node2):
+        return node2.geometry().distance(node1.geometry())
+    
+    def get_delta():
+        return randint(1,99)
+    
+    # <reward, node>
+    budget_nodes_queue = PriorityQueue()
+    best_k = []
+    for node in graph:
+        # sample a node
+        v_s, v_i = node
+        cost = get_cost(v_s, v_i)
+        reward = get_reward(v_i, objective, factors)
+        delta = get_delta()
+        if cost <= B + delta:
+            priority = -1 * reward
+            budget_nodes_queue.push((reward, cost, v_i), priority)
+            
+    # get k-optimal nodes
+    while not budget_nodes_queue.isEmpty():
+        if len(best_k) == k:
+            break
+        best_k.append(budget_nodes_queue.pop())
+
+    return best_k
+
 def find_building_algorithm(layer, search_key, 
     current_building, radius,
     objective, penalty):
@@ -152,70 +237,3 @@ def find_building_algorithm(layer, search_key,
         final_buildings.append(nearest_buildings_info[b_idx])
         
     return final_buildings
-    
-    
-def find_building_algorithm_2(layer, search_key, 
-    current_building, radius,
-    objective, k=3):
-    
-    # budget
-    B = radius
-    
-    # Find target building geometry
-    startingFeature = None
-    for feature in layer.getFeatures():
-        if str(feature[search_key]) == str(current_building):
-            print(feature["NAME"])
-            startingFeature = feature
-            #x = targetGeometry.asMultiPolygon()
-            #print("MultiPolygon: ", x, "Area: ", targetGeometry.area())
-            break
-    
-    # build graph
-    # < startingNode, nextbuilding >
-    graph = []
-    for feature in layer.getFeatures():
-        if feature.id() != startingFeature.id():
-            node = (startingFeature, feature)
-            #print(node[1]['TR_WEIGHTS'])
-            graph.append(node)
-    
-    # CST - simple algo
-    def get_reward(node, objective, factors):
-        if objective == 0:
-            targetRewardKey = "MR_WEIGHTS"
-        elif objective == 1:
-            targetRewardKey = "TR_WEIGHTS"
-        reward = node[targetRewardKey]
-        if node[targetRewardKey] == None:
-            reward = 0
-        return reward
-        
-    def get_cost(node1, node2):
-        return node2.geometry().distance(node1.geometry())
-    
-    def get_delta():
-        return randint(1,99)
-    
-    # <reward, node>
-    budget_nodes_queue = PriorityQueue()
-    best_k = []
-    for node in graph:
-        # sample a node
-        v_s, v_i = node
-        cost = get_cost(v_s, v_i)
-        reward = get_reward(v_i, objective, {})
-        delta = get_delta()
-        if cost <= B + delta:
-            priority = -1 * reward
-            budget_nodes_queue.push((reward, cost, v_i), priority)
-            
-    # get k-optimal nodes
-    extracted_k = 0
-    while not budget_nodes_queue.isEmpty():
-        if extracted_k > 2:
-            break
-        best_k.append(budget_nodes_queue.pop())
-        extracted_k += 1
-
-    return best_k

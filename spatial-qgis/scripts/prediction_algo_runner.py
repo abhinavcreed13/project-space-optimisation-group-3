@@ -4,12 +4,16 @@
 from qgis.core import QgsProject
 
 campus_code = "PAR"
-#layer_name = "PAR_BUILDING_OUTLINE"
-layer_name = "ENHANCED_TR"
+layer_name = "PAR_BUILDING_OUTLINE_WITH_DATA"
 search_key = "BUILD_NO"
 
 layer = QgsProject.instance().mapLayersByName(layer_name)[0]
 
+stats = DataStats(layer)
+print(stats.total_equipments)
+factors = {
+    "WITH_EQUIPMENTS": True
+}
 # alan gilbert building trial run
 # 400m radius
 # objective - meeting rooms
@@ -17,10 +21,12 @@ layer = QgsProject.instance().mapLayersByName(layer_name)[0]
 top_k_nodes = find_building_algorithm_2(
                         layer = layer, 
                         search_key = search_key,
-                        current_building = 220, 
+                        current_building = 104, 
                         radius = 200, 
-                        objective = 1,
-                        k=3)
+                        objective = 0,
+                        k=3,
+                        factors = factors,
+                        stats = stats)
                         #penalty = 0.05)
         
 # select top 3 buildings
