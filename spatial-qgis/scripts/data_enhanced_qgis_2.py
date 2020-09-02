@@ -136,17 +136,13 @@ class DataEnhancer(QgsProcessingAlgorithm):
             context
         )
 
+        # parameters
         base_url = base_url.strip()
         campus_code = campus_code.strip().lower()
         search_key = search_key.strip()
 
         if source is None:
             raise QgsProcessingException(self.invalidSourceError(parameters, self.INPUT))
-
-        #_manager = LayerManager(source, feedback)
-
-        # add all attributes to the layer
-        #_manager.add_attributes()
         
         # extract required data
         _extractor = DataExtractor(feedback, base_url)
@@ -154,15 +150,174 @@ class DataEnhancer(QgsProcessingAlgorithm):
         filtered_toilets_data = _extractor.get_toilets_data(campus_code)
         filtered_employee_data = _extractor.get_employees_data(campus_code)
         mr_equipment_data = _extractor.get_meeting_rooms_equipment_data(campus_code)
-        timetable_data = _extractor.timetable_data
-        timetable_data_toi = _extractor.get_timetable_data(campus_code)
+        filtered_timetable_data = _extractor.get_timetable_data(campus_code)
         
-        #layer = _manager.get_layer()
+        # layer handlers
         layer = source
-
         features = layer.getFeatures()
         layer_provider = layer.dataProvider()
 
+        # create layer manager
+        layerManager = LayerManager(feedback)
+
+        # clean + add attributes
+        layerManager.add_attributes(layer, layer_provider)
+        
+        # get indexes of all attributes
+        attr_indexes = layerManager.get_indexes_of_attributes(layer_provider)
+
+        #### ---- Creating grouped data ----- #####
+        feedback.pushInfo('Merging data for getting supply')   
+        tr_data = filtered_toilets_data.groupby(by = ['Campus Code','Building Code','Building Name'],as_index = False).agg({'Room Code':pd.Series.nunique,'Room Capacity':sum})
+        tr_data = tr_data.rename(columns = {"Room Code":"TR_COUNT", "Room Capacity": "TR_CAP"})
+        
+        mr_data = filtered_meeting_rooms_data.groupby(by=['Campus Code','Building Code','Building Name'], as_index=False).agg({'Room Code':pd.Series.nunique,'Room Capacity':sum})
+        mr_data = mr_data.rename(columns={"Room Code": "MR_COUNT", "Room Capacity": "MR_CAP"})
+        
+        feedback.pushInfo('Merging data for getting demand')
+        student_data = filtered_timetable_data.groupby(by=['Campus Code','Building Code','Building Name'], as_index=False).agg({'Planned Size':sum})
+        student_data = student_data.rename(columns = {'Planned Size':'STU_COUNT'})
+        
+        emp_data = filtered_employee_data.groupby(by=['Campus Code','Building Code','Building Name'], as_index=False).agg({'Employee Sequential ID':pd.Series.nunique})
+        emp_data = emp_data.rename(columns={'Employee Sequential ID':'EMP_COUNT'})
+        
+        cols = ['Campus Code','Building Code','Building Name']
+        aggs = {'Equipment Code': pd.Series.nunique}
+        names = {'Equipment Code': 'EQP_CNT'}
+        mr_av_data = mr_equipment_data.groupby(by=cols, as_index=False).agg(aggs)
+        mr_av_data = mr_av_data.rename(columns=names)
+        ###### ---------------------------------- ######
+
+        # create sink for new output layer
+        (sink, dest_id) = self.parameterAsSink(
+            parameters,
+            self.OUTPUT,
+            context,
+            layer.fields(),
+            layer.wkbType(),
+            layer.sourceCrs()
+        )
+        feedback.pushInfo('CRS is {}'.format(layer.sourceCrs().authid()))
+        if sink is None:
+            raise QgsProcessingException(self.invalidSinkError(parameters, self.OUTPUT))
+        
+        total = 100.0 / layer.featureCount() if layer.featureCount() else 0
+        
+        features = layer.getFeatures()
+        _features = DataFeatures(feedback)
+
+        # feature update logic
+        for current, feature in enumerate(features):
+            if feedback.isCanceled():
+                break
+            id = feature.id()
+            
+            # update calculated fields
+            supply = _features.get_data_for_key(mr_data, feature[search_key], 'MR_CAP')
+            demand = _features.get_data_for_key(emp_data, feature[search_key], 'EMP_COUNT')
+
+            toilet_supply = _features.get_data_for_key(tr_data,feature[search_key], 'TR_CAP')
+            toilet_demand = _features.get_data_for_key(student_data,feature[search_key], 'STU_COUNT')
+            
+            if supply and demand:
+                weight = float(supply/demand)
+            else:
+                weight = QVariant()
+            if toilet_supply and toilet_demand:
+                tr_weight = float(toilet_supply/toilet_demand)
+            else:
+                tr_weight = QVariant()
+
+            feature['MR_WEIGHTS'] = weight
+            feature['TR_WEIGHTS'] = tr_weight        
+            
+            # update data fields
+            mr_count = _features.get_data_for_key(mr_data, feature[search_key], 'MR_COUNT')
+            if mr_count:
+                feature['MR_CNT'] = int(mr_count)
+            else:
+                feature['MR_CNT'] = QVariant()
+
+            if supply:
+                feature['MR_CAP'] = int(supply)
+            else:
+                feature['MR_CAP'] = QVariant()
+            
+            tr_count = _features.get_data_for_key(tr_data,feature[search_key], 'TR_COUNT')
+            if tr_count:
+                feature['TR_CNT'] = int(tr_count)
+            else:
+                feature['TR_CNT'] = QVariant()
+
+            if toilet_supply:
+                feature['TR_CAP'] = int(toilet_supply)
+            else:
+                feature['TR_CAP'] = QVariant()
+
+            if demand:
+                feature['EMP_CNT'] = int(demand)
+            else:
+                feature['EMP_CNT'] = QVariant()
+
+            eqp_count = _features.get_data_for_key(mr_av_data, feature[search_key], 'EQP_CNT')
+            if eqp_count:
+                feature['EQP_CNT'] = int(eqp_count)
+            else:
+                feature['EQP_CNT'] = QVariant()
+            
+            if toilet_demand:
+                feature['STU_CNT'] = int(toilet_demand)
+            else:
+                feature['STU_CNT'] = QVariant()
+
+            # connect index with attributes
+            attr_value={
+                attr_indexes['MR_WEIGHTS']: feature['MR_WEIGHTS'],
+                attr_indexes['TR_WEIGHTS']: feature['TR_WEIGHTS'],
+                attr_indexes['MR_CNT']: feature['MR_CNT'],
+                attr_indexes['MR_CAP']: feature['MR_CAP'],
+                attr_indexes['TR_CNT']: feature['TR_CNT'],
+                attr_indexes['TR_CAP']: feature['TR_CAP'],
+                attr_indexes['EMP_CNT']: feature['EMP_CNT'],
+                attr_indexes['EQP_CNT']: feature['EQP_CNT'],
+                attr_indexes['STU_CNT']: feature['STU_CNT']
+            }
+            layer_provider.changeAttributeValues({id:attr_value})
+            if (update == "false"):
+                sink.addFeature(feature, QgsFeatureSink.FastInsert)
+            feedback.setProgress(int(current * total))
+
+        if (update == "true"):
+            feedback.pushInfo("-----")
+            feedback.pushInfo("STOPPING SCRIPT TO AVOID CREATING NEW LAYER")
+            feedback.pushInfo("-----")
+            raise Exception("--- IGNORE THIS ---")   
+        else:
+            attribute_indexes = list(attr_indexes.values())
+            layer_provider.deleteAttributes(attribute_indexes)
+            layer.updateFields()
+            layer.commitChanges()
+        
+        return {self.OUTPUT: dest_id}
+
+######## ----------- CUSTOM TOOLS ----------------- #############
+class DataFeatures():
+    def __init__(self,feedback):
+        self.feedback = feedback
+
+    def get_data_for_key(self, data, val, key):
+        row = data[data['Building Code']==val]
+        if len(row) > 0:
+            return row.iloc[0][key]
+        else:
+            return None
+
+class LayerManager():
+
+    def __init__(self, feedback):
+        self.feedback = feedback
+        
+    def add_attributes(self, layer, layer_provider):
         weightFieldIndex = layer.fields().indexFromName('MR_WEIGHTS')
         if weightFieldIndex != -1:
             layer_provider.deleteAttributes([weightFieldIndex])
@@ -176,310 +331,68 @@ class DataEnhancer(QgsProcessingAlgorithm):
         layer_provider.addAttributes([QgsField("TR_WEIGHTS",  QVariant.Double)])
         layer.updateFields() 
 
-        # idx = layer.fields().indexFromName('MR_CNT')
-        # if idx != -1:
-        #     layer_provider.deleteAttributes([idx])
-        #     layer.updateFields()
-        # layer_provider.addAttributes([QgsField("MR_CNT",  QVariant.Double)])
-        # layer.updateFields()
-
-        # idx = layer.fields().indexFromName('MR_CAP')
-        # if idx != -1:
-        #     layer_provider.deleteAttributes([idx])
-        #     layer.updateFields()
-        # layer_provider.addAttributes([QgsField("MR_CAP",  QVariant.Double)])
-        # layer.updateFields()
-
-        # idx = layer.fields().indexFromName('TR_CNT')
-        # if idx != -1:
-        #     layer_provider.deleteAttributes([idx])
-        #     layer.updateFields()
-        # layer_provider.addAttributes([QgsField("TR_CNT",  QVariant.Double)])
-        # layer.updateFields()
-
-        # idx = layer.fields().indexFromName('TR_CAP')
-        # if idx != -1:
-        #     layer_provider.deleteAttributes([idx])
-        #     layer.updateFields()
-        # layer_provider.addAttributes([QgsField("TR_CAP",  QVariant.Double)])
-        # layer.updateFields()
-
-        # idx = layer.fields().indexFromName('EMP_CNT')
-        # if idx != -1:
-        #     layer_provider.deleteAttributes([idx])
-        #     layer.updateFields()
-        # layer_provider.addAttributes([QgsField("EMP_CNT",  QVariant.Double)])
-        # layer.updateFields()
-
-        # idx = layer.fields().indexFromName('EQP_CNT')
-        # if idx != -1:
-        #     layer_provider.deleteAttributes([idx])
-        #     layer.updateFields()
-        # layer_provider.addAttributes([QgsField("EQP_CNT",  QVariant.Double)])
-        # layer.updateFields()
-
-        # idx = layer.fields().indexFromName('STU_CNT')
-        # if idx != -1:
-        #     layer_provider.deleteAttributes([idx])
-        #     layer.updateFields()
-        # layer_provider.addAttributes([QgsField("STU_CNT",  QVariant.Double)])
-        # layer.updateFields()
-        
-        #idx1 = layer_provider.fieldNameIndex('MR_CNT')
-        weightFieldIndex = layer_provider.fieldNameIndex('MR_WEIGHTS')
-        weightFieldIndex_toilets = layer_provider.fieldNameIndex('TR_WEIGHTS')
-        # idx1 = layer_provider.fieldNameIndex('MR_CNT')
-        # idx2 = layer_provider.fieldNameIndex('MR_CAP')
-        # idx3 = layer_provider.fieldNameIndex('TR_CNT')
-        # idx4 = layer_provider.fieldNameIndex('TR_CAP')
-        # idx5 = layer_provider.fieldNameIndex('EMP_CNT')
-        # idx6 = layer_provider.fieldNameIndex('EQP_CNT')
-        # idx7 = layer_provider.fieldNameIndex('STU_CNT')
-
-        # uom_space_url = base_url+'uom-space.xlsx'
-        # rm_category_type_url = base_url+'rm-category-type-cleaned.xlsx'
-        # em_location_url = base_url+'em-location.xlsx'
-        # av_equipment_url = base_url+'av-equipment.xlsx'
-        # timetable_2020_url = base_url+'2020-timetable-v2.xlsx'
-        # floor_name_url = base_url+'fl-name-cleaned.xlsx'
-        # meeting_room_usage_url = base_url+'meeting-room-usage.xlsx'
-        # _processor = DataProcessor(uom_space_url,rm_category_type_url,em_location_url,av_equipment_url,
-        #                    timetable_2020_url,floor_name_url,meeting_room_usage_url,feedback)
-        # _processor.load_data()
-        # space_data, employee_data, av_equipment_data, timetable_data, mr_usage_data = _processor.get_all_datasets()
-        # _extractor = DataExtractor(feedback)
-
-        # possible_meeting_rooms_data = _extractor.get_meeting_rooms_data(_processor.rm_category_type_df, space_data)
-        # possible_toilets_data = _extractor.get_toilets_data(_processor.rm_category_type_df, space_data)
-        # timetable_data_toi = timetable_data[timetable_data['Campus Code'] == campus_code]
-        # filtered_meeting_rooms_data = possible_meeting_rooms_data[possible_meeting_rooms_data['Campus Code'] == campus_code]
-        # filtered_employee_data = employee_data[employee_data['Campus Code']==campus_code]
-        # filtered_toilets_data = possible_toilets_data[possible_toilets_data['Campus Code'] == campus_code]
-        # _manager.create_grouped_data(filtered_meeting_rooms_data, 
-        #                             filtered_toilets_data,
-        #                             filtered_employee_data,
-        #                             mr_equipment_data,
-        #                             timetable_data_toi)
-
-        feedback.pushInfo(str(len(filtered_toilets_data)))
-        feedback.pushInfo(str(len(filtered_meeting_rooms_data)))
-        feedback.pushInfo(str(len(filtered_employee_data)))
-        feedback.pushInfo(str(len(timetable_data_toi)))
-
-        feedback.pushInfo('Merging data for getting supply')
-        tr_data = filtered_toilets_data.groupby(by = ['Campus Code','Building Code','Building Name'],as_index = False).agg({'Room Code':pd.Series.nunique,'Room Capacity':sum})
-        tr_data = tr_data.rename(columns = {"Room Code":"TR_COUNT", "Room Capacity": "TR_CAP"})
-        mr_data = filtered_meeting_rooms_data.groupby(by=['Campus Code','Building Code','Building Name'], as_index=False).agg({'Room Code':pd.Series.nunique,'Room Capacity':sum})
-        mr_data = mr_data.rename(columns={"Room Code": "MR_COUNT", "Room Capacity": "MR_CAP"})
-        
-        feedback.pushInfo('Merging data for getting demand')
-        student_data = timetable_data.groupby(by=['Campus Code','Building Code','Building Name'], as_index=False).agg({'Planned Size':sum})
-        student_data = student_data.rename(columns = {'Planned Size':'STU_COUNT'})
-        feedback.pushInfo(str(len(student_data)))
-        
-        emp_data = filtered_employee_data.groupby(by=['Campus Code','Building Code','Building Name'], as_index=False).agg({'Employee Sequential ID':pd.Series.nunique})
-        emp_data = emp_data.rename(columns={'Employee Sequential ID':'EMP_COUNT'})
-        feedback.pushInfo(str(len(emp_data)))
-        
-        (sink, dest_id) = self.parameterAsSink(
-            parameters,
-            self.OUTPUT,
-            context,
-            layer.fields(),
-            layer.wkbType(),
-            layer.sourceCrs()
-        )
-        feedback.pushInfo('CRS is {}'.format(layer.sourceCrs().authid()))
-        
-        if sink is None:
-            raise QgsProcessingException(self.invalidSinkError(parameters, self.OUTPUT))
-        
-        total = 100.0 / layer.featureCount() if layer.featureCount() else 0
-        features = layer.getFeatures()
-        _features = DataFeatures(feedback)
-
-        for current, feature in enumerate(features):
-            if feedback.isCanceled():
-                break
-            id = feature.id()
-            supply = _features.get_meeting_room_capacity(mr_data, feature[search_key])
-            demand = _features.get_employee_count(emp_data, feature[search_key])
-            toilet_supply = _features.get_toilet_room_capacity(tr_data,feature[search_key])
-            toilet_demand = _features.get_student_count(student_data,feature[search_key])
-            if supply and demand:
-                weight = float(supply/demand)
-            else:
-                weight = QVariant()
-            if toilet_supply and toilet_demand:
-                tr_weight = float(toilet_supply/toilet_demand)
-            else:
-                tr_weight = QVariant()          
-            feature['TR_WEIGHTS'] = weight        
-            feature['MR_WEIGHTS'] = tr_weight
-            # feature['MR_CNT'] = QVariant()
-            # feature['MR_CAP'] = QVariant()
-            # feature['TR_CNT'] = QVariant()
-            # feature['TR_CAP'] = QVariant()
-            # feature['EMP_CNT'] = QVariant()
-            # feature['EQP_CNT'] = QVariant()
-            # feature['STU_CNT'] = QVariant()
-            attr_value={
-                weightFieldIndex: QVariant(),
-                weightFieldIndex_toilets: QVariant()
-                # idx1: QVariant(),
-                # idx2: QVariant(),
-                # idx3: QVariant(),
-                # idx4: QVariant(),
-                # idx5: QVariant(),
-                # idx6: QVariant(),
-                # idx7: QVariant()
-            }
-            #attr_value = _manager.update_feature(feature, attr_value)
-            layer_provider.changeAttributeValues({id:attr_value})
-            if(update == "false"):
-                sink.addFeature(feature, QgsFeatureSink.FastInsert)
-            feedback.setProgress(int(current * total))
-
-        if (update == "true"):
-            feedback.pushInfo("-----")
-            feedback.pushInfo("STOPPING SCRIPT TO AVOID CREATING NEW LAYER")
-            feedback.pushInfo("-----")
-            raise Exception("--- IGNORE THIS ---")   
-        else:
-            # layer_provider.deleteAttributes([idx1, idx2, idx3, idx4, idx5, idx6, idx7, weightFieldIndex_toilets,weightFieldIndex])
-            layer_provider.deleteAttributes([weightFieldIndex_toilets,weightFieldIndex])
+        idx = layer.fields().indexFromName('MR_CNT')
+        if idx != -1:
+            layer_provider.deleteAttributes([idx])
             layer.updateFields()
-            layer.commitChanges()
-        
-        return {self.OUTPUT: dest_id}
+        layer_provider.addAttributes([QgsField("MR_CNT",  QVariant.Int)])
+        layer.updateFields()
 
-class LayerManager():
+        idx = layer.fields().indexFromName('MR_CAP')
+        if idx != -1:
+            layer_provider.deleteAttributes([idx])
+            layer.updateFields()
+        layer_provider.addAttributes([QgsField("MR_CAP",  QVariant.Int)])
+        layer.updateFields()
 
-    def __init__(self, layer, feedback):
-        self.layer = layer
-        self.feedback = feedback
-        self.features = layer.getFeatures()
-        self.layer_provider = layer.dataProvider()
-        self.attributes = {
-            'MR_CNT': QVariant.Double,
-            'MR_CAP': QVariant.Double,
-            'TR_CNT': QVariant.Double,
-            'TR_CAP': QVariant.Double,
-            'EMP_CNT': QVariant.Double,
-            'EQP_CNT': QVariant.Double,
-            'STU_CNT': QVariant.Double,
-            'MR_WEIGHTS': QVariant.Double,
-            'TR_WEIGHTS': QVariant.Double      
+        idx = layer.fields().indexFromName('TR_CNT')
+        if idx != -1:
+            layer_provider.deleteAttributes([idx])
+            layer.updateFields()
+        layer_provider.addAttributes([QgsField("TR_CNT",  QVariant.Int)])
+        layer.updateFields()
+
+        idx = layer.fields().indexFromName('TR_CAP')
+        if idx != -1:
+            layer_provider.deleteAttributes([idx])
+            layer.updateFields()
+        layer_provider.addAttributes([QgsField("TR_CAP",  QVariant.Int)])
+        layer.updateFields()
+
+        idx = layer.fields().indexFromName('EMP_CNT')
+        if idx != -1:
+            layer_provider.deleteAttributes([idx])
+            layer.updateFields()
+        layer_provider.addAttributes([QgsField("EMP_CNT",  QVariant.Int)])
+        layer.updateFields()
+
+        idx = layer.fields().indexFromName('EQP_CNT')
+        if idx != -1:
+            layer_provider.deleteAttributes([idx])
+            layer.updateFields()
+        layer_provider.addAttributes([QgsField("EQP_CNT",  QVariant.Int)])
+        layer.updateFields()
+
+        idx = layer.fields().indexFromName('STU_CNT')
+        if idx != -1:
+            layer_provider.deleteAttributes([idx])
+            layer.updateFields()
+        layer_provider.addAttributes([QgsField("STU_CNT",  QVariant.Int)])
+        layer.updateFields()
+
+    def get_indexes_of_attributes(self, layer_provider):
+        return {
+            "MR_WEIGHTS": layer_provider.fieldNameIndex('MR_WEIGHTS'),
+            "TR_WEIGHTS": layer_provider.fieldNameIndex('TR_WEIGHTS'),
+            "MR_CNT": layer_provider.fieldNameIndex('MR_CNT'),
+            "MR_CAP": layer_provider.fieldNameIndex('MR_CAP'),
+            "TR_CNT": layer_provider.fieldNameIndex('TR_CNT'),
+            "TR_CAP": layer_provider.fieldNameIndex('TR_CAP'),
+            "EMP_CNT": layer_provider.fieldNameIndex('EMP_CNT'),
+            "EQP_CNT": layer_provider.fieldNameIndex('EQP_CNT'),
+            "STU_CNT": layer_provider.fieldNameIndex('STU_CNT')
         }
-        self.grouped_mr_data = None
-        self.grouped_to_data = None
-        self.grouped_av_data = None
-        self.grouped_emp_data = None
-        self.grouped_stu_data = None
-        self.data_attributes = {}
 
-    def get_layer(self):
-        return self.layer
-        
-    def add_attributes(self):
-        self.feedback.pushInfo("Cleaning attributes")
-        self.clean_attributes()
-        self.feedback.pushInfo("Adding attributes")
-        attributes_to_add = []
-        for attribute, attr_type in self.attributes.items():
-            attributes_to_add.append(QgsField(attribute, attr_type))
-        self.layer_provider.addAttributes(attributes_to_add)
-        self.layer.updateFields()
-
-    def clean_attributes(self):
-        attributes_to_delete = []
-        for attribute in self.attributes.keys():
-            field_index = self.layer.fields().indexFromName(attribute)
-            if field_index != -1:
-                attributes_to_delete.append(field_index)
-        if len(attributes_to_delete) > 0:
-            # clean attributes
-            self.layer_provider.deleteAttributes(attributes_to_delete)
-            self.layer.updateFields()
-
-    def update_feature(self, feature, attr):
-        for attribute, data in self.data_attributes.items():
-            feature[attribute] = QVariant()
-            attribute_index = self.layer_provider.fieldNameIndex(attribute)
-            attr[attribute_index] = QVariant()
-        return attr
-            
-    def clean_base_layer(self):
-        attribute_indexes = []
-        for attribute in self.attributes.keys():
-            idx = self.layer_provider.fieldNameIndex(attribute)
-            if idx != -1:
-                attribute_indexes.append(idx)
-        if len(attribute_indexes) > 0:
-            self.layer_provider.deleteAttributes(attribute_indexes)
-            self.layer.updateFields()
-            self.layer.commitChanges()   
-
-    def create_grouped_data(self, meeting_rooms_data, 
-                                    toilets_data,
-                                    employees_data,
-                                    mr_equipment_data,
-                                    timetable_data):
-        self._create_grouped_mr_data(meeting_rooms_data)
-        self._create_grouped_to_data(toilets_data)
-        self._create_grouped_av_data(mr_equipment_data)
-        self._create_grouped_emp_data(employees_data)
-        self._create_grouped_stu_data(timetable_data)
-
-    def _create_grouped_mr_data(self, data):
-        cols = ['Campus Code','Building Code','Building Name']
-        aggs = {'Room Code':pd.Series.nunique,'Room Capacity':sum}
-        names = {"Room Code": "MR_CNT", "Room Capacity": "MR_CAP"}
-        self.grouped_mr_data = self.get_grouped_data(data, cols, aggs)
-        self.grouped_mr_data = self.rename_columns(self.grouped_mr_data, names)
-        self.data_attributes['MR_CNT'] = self.grouped_mr_data
-        self.data_attributes['MR_CAP'] = self.grouped_mr_data
-
-    def _create_grouped_to_data(self, data):
-        cols = ['Campus Code','Building Code','Building Name']
-        aggs = {'Room Code':pd.Series.nunique,'Room Capacity':sum}
-        names = {"Room Code": "TR_CNT", "Room Capacity": "TR_CAP"}
-        self.grouped_to_data = self.get_grouped_data(data, cols, aggs)
-        self.grouped_to_data = self.rename_columns(self.grouped_to_data, names)
-        self.data_attributes['TR_CNT'] = self.grouped_to_data
-        self.data_attributes['TR_CAP'] = self.grouped_to_data
-        
-    def _create_grouped_emp_data(self, data):
-        cols = ['Campus Code','Building Code','Building Name']
-        aggs = {'Employee Sequential ID':pd.Series.nunique}
-        names = {'Employee Sequential ID':'EMP_CNT'}
-        self.grouped_emp_data = self.get_grouped_data(data, cols, aggs)
-        self.grouped_emp_data = self.rename_columns(self.grouped_emp_data, names)
-        self.data_attributes['EMP_CNT'] = self.grouped_emp_data
-        
-    def _create_grouped_av_data(self, data):
-        cols = ['Campus Code','Building Code','Building Name']
-        aggs = {'Equipment Code': pd.Series.nunique}
-        names = {'Equipment Code': 'EQP_CNT'}
-        self.grouped_av_data = self.get_grouped_data(data, cols, aggs)
-        self.grouped_av_data = self.rename_columns(self.grouped_av_data, names)
-        self.data_attributes['EQP_CNT'] = self.grouped_av_data
-        
-    def _create_grouped_stu_data(self, data):
-        cols = ['Campus Code','Building Code','Building Name']
-        aggs = {'Planned Size':sum}
-        names = {'Planned Size':'STU_CNT'}
-        self.grouped_stu_data = self.get_grouped_data(data, cols, aggs)
-        self.grouped_stu_data = self.rename_columns(self.grouped_stu_data, names)
-        self.data_attributes['STU_CNT'] = self.grouped_stu_data
-        
-    def get_grouped_data(self, data, cols, aggs):
-        grouped_data = data.groupby(by=cols, as_index=False).agg(aggs)
-        return grouped_data
-
-    def rename_columns(self, data, cols):
-        return data.rename(columns=cols)
-        
 class DataExtractor():
     
     def __init__(self, feedback, base_url):
@@ -538,7 +451,7 @@ class DataExtractor():
             return timetable_data[timetable_data['Campus Code'] == campus_code]
         return timetable_data
 
-
+######### -------------------- HELPERS -------------- ################
 class DataProcessor():
     def __init__(self,uom_space_url,rm_category_type_url,
                  em_location_url,av_equipment_url,
@@ -607,7 +520,6 @@ class DataProcessor():
 
         return self.merged_space_data, self.merged_em_location_data, self.merged_av_equipment_data, self.merged_timetable_data, self.merged_meeting_room_usage_data
 
-
 class DataCleaner():
     def __init__(self,feedback):
         self.feedback = feedback
@@ -671,7 +583,6 @@ class DataCleaner():
         meeting_room_usage_df['Room Code'] = meeting_room_usage_df['Room Code'].astype(str).str.strip().str.lower()
         return meeting_room_usage_df
 
-    
 class DataMutator():
     def __init__(self,feedback):
         self.feedback = feedback
@@ -705,7 +616,6 @@ class DataMutator():
         timetable_df['Class Duration In Minutes'] = class_duration_minutes
         return timetable_df
 
-
 class DataMerger():
 
     def __init__(self,feedback):
@@ -737,54 +647,3 @@ class DataMerger():
         self.feedback.pushInfo("Merge - space_data + meeting_room_usage")
         merged_meeting_room_usage_df = pd.merge(meeting_room_usage_df,merged_space_data_df,on=['Campus Code','Building Code','Floor Code','Room Code'])
         return merged_meeting_room_usage_df
-
-# class DataExtractor():
-#     def __init__(self,feedback):
-#         self.feedback = feedback
-
-#     def get_meeting_rooms_data(self,rm_category_type_df,space_data):
-#         possible_rooms = rm_category_type_df[rm_category_type_df['Room Type'].str.contains("601|629")]
-#         meeting_room_types = possible_rooms['Room Type'].tolist()
-
-#         possible_meeting_rooms_df = space_data[space_data['Room Type'].isin(meeting_room_types)]
-#         return possible_meeting_rooms_df
-
-#     def get_toilets_data(self,rm_category_type_df,space_data):
-#         possible_rooms = rm_category_type_df[rm_category_type_df['Room Type Definition'].str.contains("toilet|washroom")]
-#         toilet_room_types = possible_rooms['Room Type'].tolist()
-
-#         possible_toilets_df = space_data[space_data['Room Type'].isin(toilet_room_types)]
-#         return possible_toilets_df
-
-
-class DataFeatures():
-    def __init__(self,feedback):
-        self.feedback = feedback
-
-    def get_meeting_room_capacity(self,data, val):
-        row = data[data['Building Code']==val]
-        if len(row) > 0:
-            return row.iloc[0]['MR_COUNT']
-        else:
-            return None
-
-    def get_toilet_room_capacity(self,data, val):
-        row = data[data['Building Code']==val]
-        if len(row) > 0:
-            return row.iloc[0]['TR_COUNT']
-        else:
-            return None
-
-    def get_student_count(self,data, val):
-        row = data[data['Building Code']==val]
-        if len(row) > 0:
-            return row.iloc[0]['STU_COUNT']
-        else:
-            return None
-
-    def get_employee_count(self,data, val):
-        row = data[data['Building Code']==val]
-        if len(row) > 0:
-            return row.iloc[0]['EMP_COUNT']
-        else:
-            return None
