@@ -2,7 +2,7 @@ from qgis.core import QgsProject
 import pandas as pd
 
 campus_code = "PAR"
-layer_name = "PAR_BUILDING_OUTLINE"
+layer_name = "PAR_BUILDING_OUTLINE_WITH_DATA"
 search_key = "BUILD_NO"
 objective = 0
 layer = QgsProject.instance().mapLayersByName(layer_name)[0]
