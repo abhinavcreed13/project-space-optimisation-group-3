@@ -25,7 +25,8 @@ from qgis.core import (QgsProcessing,
                        QgsFields,
                        QgsProject,
                        QgsFeature,
-                       QgsVectorLayer)
+                       QgsVectorLayer,
+                       QgsProcessingParameterMapLayer)
 from qgis import processing
 import pandas as pd
 
@@ -37,6 +38,7 @@ class DataEnhancer(QgsProcessingAlgorithm):
     BASE_URL = "base_url"
     CAMPUS_CODE = "campus_code"
     SEARCH_KEY = "search_key"
+    UPDATE = "update"
 
     def tr(self, string):
         return QCoreApplication.translate('Processing', string)
@@ -61,7 +63,7 @@ class DataEnhancer(QgsProcessingAlgorithm):
 
     def initAlgorithm(self, config=None):
         self.addParameter(
-            QgsProcessingParameterFeatureSource(
+            QgsProcessingParameterMapLayer(
                 self.INPUT,
                 self.tr('Input layer'),
                 [QgsProcessing.TypeVectorAnyGeometry]
@@ -84,7 +86,18 @@ class DataEnhancer(QgsProcessingAlgorithm):
                 self.SEARCH_KEY,
                 'Enter Search Key'
             )
+
         )
+         
+        self.addParameter(
+            QgsProcessingParameterBoolean(
+                self.UPDATE,
+                'Update base layer and Do not create new layer'
+            )
+
+        )
+            # 
+
         self.addParameter(
             QgsProcessingParameterFeatureSink(
                 self.OUTPUT,
@@ -92,8 +105,9 @@ class DataEnhancer(QgsProcessingAlgorithm):
             )
         )
 
+
     def processAlgorithm(self, parameters, context, feedback):
-        source = self.parameterAsSource(
+        source = self.parameterAsLayer(
             parameters,
             self.INPUT,
             context
@@ -116,21 +130,31 @@ class DataEnhancer(QgsProcessingAlgorithm):
             context
         )
 
+        update = self.parameterAsString(
+            parameters,
+            self.UPDATE,
+            context
+        )
+
         base_url = base_url.strip()
         campus_code = campus_code.strip().lower()
         search_key = search_key.strip()
-        data = parameters['INPUT'].split('_')
-        input_param = data[0]+"_"+data[1]+"_"+data[2]
-        layer = QgsProject.instance().mapLayersByName(input_param)[0]
+        layer = source
         features = layer.getFeatures()
         layer_provider = layer.dataProvider()
-        weightFieldIndex = source.fields().indexFromName('MR_WEIGHTS')
+        weightFieldIndex = layer.fields().indexFromName('MR_WEIGHTS')
         if weightFieldIndex != -1:
             layer_provider.deleteAttributes([weightFieldIndex])
             layer.updateFields()
         layer_provider.addAttributes([QgsField("MR_WEIGHTS",  QVariant.Double)])
+        weightFieldIndex_toilets = layer.fields().indexFromName('TR_WEIGHTS')
+        if weightFieldIndex_toilets != -1:
+            layer_provider.deleteAttributes([weightFieldIndex_toilets])
+            layer.updateFields()
+        layer_provider.addAttributes([QgsField("TR_WEIGHTS",  QVariant.Double)])
         layer.updateFields()  
         weightFieldIndex = layer_provider.fieldNameIndex('MR_WEIGHTS')
+        weightFieldIndex_toilets = layer_provider.fieldNameIndex('TR_WEIGHTS')
         uom_space_url = base_url+'uom-space.xlsx'
         rm_category_type_url = base_url+'rm-category-type-cleaned.xlsx'
         em_location_url = base_url+'em-location.xlsx'
@@ -143,16 +167,28 @@ class DataEnhancer(QgsProcessingAlgorithm):
         _processor.load_data()
         space_data, employee_data, av_equipment_data, timetable_data, mr_usage_data = _processor.get_all_datasets()
         _extractor = DataExtractor(feedback)
+
         possible_meeting_rooms_data = _extractor.get_meeting_rooms_data(_processor.rm_category_type_df, space_data)
         possible_toilets_data = _extractor.get_toilets_data(_processor.rm_category_type_df, space_data)
+        timetable_data_toi = timetable_data[timetable_data['Campus Code'] == campus_code]
         filtered_meeting_rooms_data = possible_meeting_rooms_data[possible_meeting_rooms_data['Campus Code'] == campus_code]
         filtered_employee_data = employee_data[employee_data['Campus Code']==campus_code]
+        filtered_toilets_data = possible_toilets_data[possible_toilets_data['Campus Code'] == campus_code]
+        feedback.pushInfo(str(len(filtered_toilets_data)))
         feedback.pushInfo(str(len(filtered_meeting_rooms_data)))
         feedback.pushInfo(str(len(filtered_employee_data)))
+        feedback.pushInfo(str(len(timetable_data_toi)))
+
         feedback.pushInfo('Merging data for getting supply')
+        tr_data = filtered_toilets_data.groupby(by = ['Campus Code','Building Code','Building Name'],as_index = False).agg({'Room Code':pd.Series.nunique,'Room Capacity':sum})
+        tr_data = tr_data.rename(columns = {"Room Code":"TR_COUNT", "Room Capacity": "TR_CAP"})
         mr_data = filtered_meeting_rooms_data.groupby(by=['Campus Code','Building Code','Building Name'], as_index=False).agg({'Room Code':pd.Series.nunique,'Room Capacity':sum})
         mr_data = mr_data.rename(columns={"Room Code": "MR_COUNT", "Room Capacity": "MR_CAP"})
         feedback.pushInfo('Merging data for getting demand')
+        student_data = timetable_data.groupby(by=['Campus Code','Building Code','Building Name'], as_index=False).agg({'Planned Size':sum})
+        student_data = student_data.rename(columns = {'Planned Size':'STU_COUNT'})
+        feedback.pushInfo(str(len(student_data)))
+        
         emp_data = filtered_employee_data.groupby(by=['Campus Code','Building Code','Building Name'], as_index=False).agg({'Employee Sequential ID':pd.Series.nunique})
         emp_data = emp_data.rename(columns={'Employee Sequential ID':'EMP_COUNT'})
         feedback.pushInfo(str(len(emp_data)))
@@ -176,33 +212,35 @@ class DataEnhancer(QgsProcessingAlgorithm):
         for current, feature in enumerate(features):
             if feedback.isCanceled():
                 break
-            aid = layer_provider.fieldNameIndex('MR_WEIGHTS')
             id = feature.id()
             supply = _features.get_meeting_room_capacity(mr_data, feature[search_key])
             demand = _features.get_employee_count(emp_data, feature[search_key])
+            toilet_supply = _features.get_toilet_room_capacity(tr_data,feature[search_key])
+            toilet_demand = _features.get_student_count(student_data,feature[search_key])
             if supply and demand:
                 weight = float(supply/demand)
             else:
-                weight = 'NULL'
+                weight = QVariant()
+            if toilet_supply and toilet_demand:
+                tr_weight = float(toilet_supply/toilet_demand)
+            else:
+                tr_weight = QVariant()
+            feature['TR_WEIGHTS'] = tr_weight
             feature['MR_WEIGHTS'] = weight
-            attr_value={weightFieldIndex:weight}
+            attr_value={weightFieldIndex:weight,weightFieldIndex_toilets:tr_weight}
             layer_provider.changeAttributeValues({id:attr_value})
-            sink.addFeature(feature, QgsFeatureSink.FastInsert)
+            if(update == "false"):
+                sink.addFeature(feature, QgsFeatureSink.FastInsert)
             feedback.setProgress(int(current * total))
-        layer.commitChanges()
-
-        if False:
-            buffered_layer = processing.run("native:buffer", {
-                'INPUT': dest_id,
-                'DISTANCE': 1.5,
-                'SEGMENTS': 5,
-                'END_CAP_STYLE': 0,
-                'JOIN_STYLE': 0,
-                'MITER_LIMIT': 2,
-                'DISSOLVE': False,
-                'OUTPUT': 'memory:'
-            }, context=context, feedback=feedback)['OUTPUT']
-
+        if (update == "true"):
+            feedback.pushInfo("-----")
+            feedback.pushInfo("STOPPING SCRIPT TO AVOID CREATING NEW LAYER")
+            feedback.pushInfo("-----")
+            raise Exception("--- IGNORE THIS ---")   
+        else:
+            layer_provider.deleteAttributes([weightFieldIndex_toilets,weightFieldIndex])
+            layer.updateFields()
+            layer.commitChanges()
         return {self.OUTPUT: dest_id}
 
 
@@ -268,8 +306,10 @@ class DataProcessor():
         self.merged_em_location_data = _merger.get_merged_em_location_data(self.em_location_df,self.merged_space_data)
         self.merged_av_equipment_data = _merger.get_merged_av_equipment_data(self.av_equipment_df,self.merged_space_data)
         self.merged_timetable_data = _merger.get_merged_timetable_data(self.timetable_df,self.merged_space_data)
+
         self.merged_meeting_room_usage_data = _merger.get_merged_meeting_room_usage_data(self.meeting_room_usage_df,self.merged_space_data)
         self.feedback.pushInfo("Data Merging Successful!")
+
         return self.merged_space_data, self.merged_em_location_data, self.merged_av_equipment_data, self.merged_timetable_data, self.merged_meeting_room_usage_data
 
 
@@ -356,12 +396,12 @@ class DataMutator():
         class_duration_minutes = []
         for idx,row in timetable_df.iterrows():
             s = row['Host Key of Allocated Locations'].split('-')
-            building_codes.append(s[0])
-            room_codes.append(s[1])
+            building_codes.append(s[0].strip().lower())
+            room_codes.append(s[1].strip().lower())
             c = row['Name of Allocated Locations'].split('-')[0]
             if c == 'zzzPAR':
                 c = 'PAR'
-            campus_codes.append(c)
+            campus_codes.append(c.strip().lower())
             d = row['Duration as duration']
             class_duration_minutes.append(d.hour * 60 + d.minute)
         timetable_df['Building Code'] = building_codes
@@ -430,6 +470,20 @@ class DataFeatures():
         row = data[data['Building Code']==val]
         if len(row) > 0:
             return row.iloc[0]['MR_COUNT']
+        else:
+            return None
+
+    def get_toilet_room_capacity(self,data, val):
+        row = data[data['Building Code']==val]
+        if len(row) > 0:
+            return row.iloc[0]['TR_COUNT']
+        else:
+            return None
+
+    def get_student_count(self,data, val):
+        row = data[data['Building Code']==val]
+        if len(row) > 0:
+            return row.iloc[0]['STU_COUNT']
         else:
             return None
 
