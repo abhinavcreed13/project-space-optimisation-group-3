@@ -57,7 +57,7 @@ class DataStats():
             if feature["EQP_CNT"]:
                 self.total_equipments += feature["EQP_CNT"]
 
-def find_building_algorithm_2(layer, search_key, 
+def non_randomized_AoR(layer, search_key, 
     current_building, radius,
     objective, k=3, factors = {}, stats = None):
     
@@ -86,25 +86,63 @@ def find_building_algorithm_2(layer, search_key,
     # CST - simple algo
     # {
     #   WITH_EQUIPMENTS: True/False
+    #   COVID_LOCKDOWN: High/Medium/Low
     # }
     def get_reward(node, objective, factors):
         if objective == 0:
             targetRewardKey = "MR_WEIGHTS"
+            reward = node[targetRewardKey]
+            if node[targetRewardKey] == None:
+                return 0
+                
+            if "COVID_LOCKDOWN" in factors:
+                situation = factors["COVID_LOCKDOWN"].lower()
+                if situation == "high":
+                    # demand is 0
+                    reward = float(node["MR_CAP"])
+                elif situation == "medium":
+                    # demand is 25%
+                    demand = node["EMP_CNT"] * 0.25
+                    reward = float(node["MR_CAP"]/demand)
+                else:
+                    # demand is 50%
+                    demand = node["EMP_CNT"] * 0.50
+                    reward = float(node["MR_CAP"]/demand)
+            
+            # factors adjustments
+            if "WITH_EQUIPMENTS" in factors:
+                if factors["WITH_EQUIPMENTS"]:
+                    if node["EQP_CNT"]:
+                        total_eqp = stats.total_equipments
+                        adj = node["EQP_CNT"]/total_eqp
+                        reward = reward * adj
+                    else:
+                        reward = reward * 0  
+            
+            return reward
+        
         elif objective == 1:
             targetRewardKey = "TR_WEIGHTS"
-        reward = node[targetRewardKey]
-        if node[targetRewardKey] == None:
-            return 0
+            reward = node[targetRewardKey]
+            if node[targetRewardKey] == None:
+                return 0
+                
+            if "COVID_LOCKDOWN" in factors:
+                situation = factors["COVID_LOCKDOWN"].lower()
+                if situation == "high":
+                    # demand is 0
+                    reward = float(node["TR_CAP"])
+                elif situation == "medium":
+                    # demand is 25%
+                    demand = node["STU_CNT"] * 0.05
+                    reward = float(node["TR_CAP"]/demand)
+                else:
+                    # demand is 50%
+                    demand = node["STU_CNT"] * 0.50
+                    reward = float(node["TR_CAP"]/demand)
             
-        # factors adjustments
-        if factors["WITH_EQUIPMENTS"]:
-            if node["EQP_CNT"]:
-                total_eqp = stats.total_equipments
-                adj = node["EQP_CNT"]/total_eqp
-                reward = reward * adj
-            else:
-                reward = reward * 0
-        return reward
+            return reward
+      
         
     def get_cost(node1, node2):
         return node2.geometry().distance(node1.geometry())
