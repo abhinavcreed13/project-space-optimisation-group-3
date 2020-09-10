@@ -53,10 +53,43 @@ class DataStats():
     def __init__(self, layer):
         # collect stats
         self.total_equipments = 0
+        self.total_excellent_mr_cap = 0
+        self.total_verygood_mr_cap = 0
+        self.total_good_mr_cap = 0
+        self.total_average_room_size = 0
+        self.total_meetings = 0
+
+        self.total_excellent_tr_cap = 0
+        self.total_verygood_tr_cap = 0
+        self.total_good_tr_cap = 0
+        self.total_tr_average_room_size = 0
+        self.total_duration_mins = 0
+
         for feature in layer.getFeatures():
             if feature["EQP_CNT"]:
                 self.total_equipments += feature["EQP_CNT"]
+            if feature["EX_MR_CAP"]:
+                self.total_excellent_mr_cap += feature["EX_MR_CAP"]
+            if feature["VG_MR_CAP"]:
+                self.total_verygood_mr_cap += feature["VG_MR_CAP"]
+            if feature["G_MR_CAP"]:
+                self.total_good_mr_cap += feature["G_MR_CAP"]
+            if feature["AG_MR_SZ"]:
+                self.total_average_room_size += feature["AG_MR_SZ"]
+            if feature["TOTAL_M"]:
+                self.total_meetings += feature["TOTAL_M"]
 
+            if feature["EX_TR_CAP"]:
+                self.total_excellent_tr_cap += feature["EX_TR_CAP"]
+            if feature["VG_TR_CAP"]:
+                self.total_verygood_tr_cap += feature["VG_TR_CAP"]
+            if feature["G_TR_CAP"]:
+                self.total_good_tr_cap += feature["G_TR_CAP"]
+            if feature["AG_TR_SZ"]:
+                self.total_tr_average_room_size += feature["AG_TR_SZ"]
+            if feature["AG_CL_DS"]:
+                self.total_duration_mins += feature["AG_CL_DS"]
+                
 def non_randomized_AoR(layer, search_key, 
     current_building, radius,
     objective, k=3, factors = {}, stats = None):
@@ -83,10 +116,22 @@ def non_randomized_AoR(layer, search_key,
             #print(node[1]['TR_WEIGHTS'])
             graph.append(node)
     
-    # CST - simple algo
+    # Reward Function
+    # Objective = 0
     # {
-    #   WITH_EQUIPMENTS: True/False
-    #   COVID_LOCKDOWN: High/Medium/Low
+    #   REQUIRED_CAPACITY: <number>,
+    #   COVID_LOCKDOWN: High/Medium/Low,
+    #   HIGH_CAPACITY: True/False,
+    #   EASY_AVAILABILITY: True/False,
+    #   WITH_EQUIPMENTS: True/False,
+    #   ROOM_CONDITION: Excellent/Very Good/Good
+    # }
+    # Objective = 1
+    # {
+    #   REQUIRED_CAPACITY: <number>,
+    #   COVID_LOCKDOWN: High/Medium/Low,
+    #   HIGH_CAPACITY: True/False,
+    #   ROOM_CONDITION: Excellent/Very Good/Good
     # }
     def get_reward(node, objective, factors):
         if objective == 0:
@@ -94,7 +139,12 @@ def non_randomized_AoR(layer, search_key,
             reward = node[targetRewardKey]
             if node[targetRewardKey] == None:
                 return 0
-                
+
+            if "REQUIRED_CAPACITY" in factors:
+                capacity = float(node["MR_CAP"])
+                if capacity < float(factors["REQUIRED_CAPACITY"]):
+                    return 0
+
             if "COVID_LOCKDOWN" in factors:
                 situation = factors["COVID_LOCKDOWN"].lower()
                 if situation == "high":
@@ -108,7 +158,45 @@ def non_randomized_AoR(layer, search_key,
                     # demand is 50%
                     demand = node["EMP_CNT"] * 0.50
                     reward = float(node["MR_CAP"]/demand)
-            
+                    
+            if "HIGH_CAPACITY" in factors:
+                if factors["HIGH_CAPACITY"]:
+                    if node["AG_MR_SZ"]:
+                        adj = node["AG_MR_SZ"]/stats.total_average_room_size
+                        reward = reward * adj
+                    else:
+                        reward = reward * 0
+                        
+            if "EASY_AVAILABILITY" in factors:
+                if factors["EASY_AVAILABILITY"]:
+                    if node["TOTAL_M"]:
+                        adj = node["TOTAL_M"]/stats.total_meetings
+                        reward = reward * (1-adj)
+                    else:
+                        reward = reward * 0
+
+            # adjustments
+            if "ROOM_CONDITION" in factors:
+                condition = factors["ROOM_CONDITION"].lower()
+                if condition == "excellent":
+                    if node["EX_MR_CAP"]:
+                        adj = node["EX_MR_CAP"]/stats.total_excellent_mr_cap
+                        reward = reward * adj
+                    else:
+                        reward = reward * 0
+                elif condition == "verygood":
+                    if node["VG_MR_CAP"]:
+                        adj = node["VG_MR_CAP"]/stats.total_verygood_mr_cap
+                        reward = reward * adj
+                    else:
+                        reward = reward * 0
+                elif condition == "good":
+                    if node["G_MR_CAP"]:
+                        adj = node["G_MR_CAP"]/stats.total_good_mr_cap
+                        reward = reward * adj
+                    else:
+                        reward = reward * 0
+                
             # factors adjustments
             if "WITH_EQUIPMENTS" in factors:
                 if factors["WITH_EQUIPMENTS"]:
@@ -126,6 +214,11 @@ def non_randomized_AoR(layer, search_key,
             reward = node[targetRewardKey]
             if node[targetRewardKey] == None:
                 return 0
+
+            if "REQUIRED_CAPACITY" in factors:
+                capacity = float(node["TR_CAP"])
+                if capacity < float(factors["REQUIRED_CAPACITY"]):
+                    return 0
                 
             if "COVID_LOCKDOWN" in factors:
                 situation = factors["COVID_LOCKDOWN"].lower()
@@ -140,7 +233,44 @@ def non_randomized_AoR(layer, search_key,
                     # demand is 50%
                     demand = node["STU_CNT"] * 0.50
                     reward = float(node["TR_CAP"]/demand)
-            
+
+            if "HIGH_CAPACITY" in factors:
+                if factors["HIGH_CAPACITY"]:
+                    if node["AG_TR_SZ"]:
+                        adj = node["AG_TR_SZ"]/stats.total_tr_average_room_size
+                        reward = reward * adj
+                    else:
+                        reward = reward * 0
+
+            if "EASY_AVAILABILITY" in factors:
+                if factors["EASY_AVAILABILITY"]:
+                    if node["AG_CL_DS"]:
+                        adj = node["AG_CL_DS"]/stats.total_duration_mins
+                        reward = reward * (1-adj)
+                    else:
+                        reward = reward * 0
+
+            if "ROOM_CONDITION" in factors:
+                condition = factors["ROOM_CONDITION"].lower()
+                if condition == "excellent":
+                    if node["EX_TR_CAP"]:
+                        adj = node["EX_TR_CAP"]/stats.total_excellent_tr_cap
+                        reward = reward * adj
+                    else:
+                        reward = reward * 0
+                elif condition == "verygood":
+                    if node["VG_TR_CAP"]:
+                        adj = node["VG_TR_CAP"]/stats.total_verygood_tr_cap
+                        reward = reward * adj
+                    else:
+                        reward = reward * 0
+                elif condition == "good":
+                    if node["G_TR_CAP"]:
+                        adj = node["G_TR_CAP"]/stats.total_good_tr_cap
+                        reward = reward * adj
+                    else:
+                        reward = reward * 0
+
             return reward
       
         

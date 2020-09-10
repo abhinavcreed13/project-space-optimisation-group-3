@@ -94,7 +94,6 @@ class DataEnhancer(QgsProcessingAlgorithm):
                 self.UPDATE,
                 'Update base layer and Do not create new layer'
             )
-
         )
             # 
 
