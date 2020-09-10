@@ -86,7 +86,6 @@ class DataEnhancer(QgsProcessingAlgorithm):
                 self.SEARCH_KEY,
                 'Enter Search Key'
             )
-
         )
          
         self.addParameter(
