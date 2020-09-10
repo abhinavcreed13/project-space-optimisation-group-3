@@ -584,6 +584,6 @@ class Cluster():
         if (cluster == 9999):
             pass
         else:
-            self.feedback.pushInfo('Range for optimum building is Min:' + str(cluster_info[cluster]['xmin'])+
-            ' and Max is:'+str(cluster_info[cluster]['xmax'])+' with average reward:'+str(np.round(cluster_info[cluster]['avg'],2)))
+            self.feedback.pushInfo('Range for optimum building is : {min1} to {max1} meters with avegrage reward {re}.'.format(
+            min1=str(cluster_info[cluster]['xmin']), max1 = str(cluster_info[cluster]['xmax']), re = str(np.round(cluster_info[cluster]['avg'],2)) ))
             self.feedback.pushInfo("-----" + '\n')
