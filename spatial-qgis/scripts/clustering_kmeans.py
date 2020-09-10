@@ -138,14 +138,11 @@ for feature in layer.getFeatures():
     if str(feature[search_key]) == str(starting_node):
         print(feature["NAME"])
         startingFeature = feature
-        #x = targetGeometry.asMultiPolygon()
-        #print("MultiPolygon: ", x, "Area: ", targetGeometry.area())
         break
 graph = []
 for feature in layer.getFeatures():
     if feature.id() != startingFeature.id():
         node = (startingFeature, feature)
-        #print(node[1]['TR_WEIGHTS'])
         graph.append(node)
 df = pd.DataFrame()
 cost = []
