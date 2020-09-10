@@ -86,7 +86,6 @@ class DataEnhancer(QgsProcessingAlgorithm):
                 self.SEARCH_KEY,
                 'Enter Search Key'
             )
-
         )
          
         self.addParameter(
@@ -94,7 +93,6 @@ class DataEnhancer(QgsProcessingAlgorithm):
                 self.UPDATE,
                 'Update base layer and Do not create new layer'
             )
-
         )
             # 
 
@@ -151,7 +149,8 @@ class DataEnhancer(QgsProcessingAlgorithm):
         filtered_employee_data = _extractor.get_employees_data(campus_code)
         mr_equipment_data = _extractor.get_meeting_rooms_equipment_data(campus_code)
         filtered_timetable_data = _extractor.get_timetable_data(campus_code)
-        
+        filtered_mr_usage_data = _extractor.get_meeting_room_usage_data(campus_code)
+
         # layer handlers
         layer = source
         features = layer.getFeatures()
@@ -173,7 +172,7 @@ class DataEnhancer(QgsProcessingAlgorithm):
         
         mr_data = filtered_meeting_rooms_data.groupby(by=['Campus Code','Building Code','Building Name'], as_index=False).agg({'Room Code':pd.Series.nunique,'Room Capacity':sum})
         mr_data = mr_data.rename(columns={"Room Code": "MR_COUNT", "Room Capacity": "MR_CAP"})
-        
+
         feedback.pushInfo('Merging data for getting demand')
         student_data = filtered_timetable_data.groupby(by=['Campus Code','Building Code','Building Name'], as_index=False).agg({'Planned Size':sum})
         student_data = student_data.rename(columns = {'Planned Size':'STU_COUNT'})
@@ -186,6 +185,59 @@ class DataEnhancer(QgsProcessingAlgorithm):
         names = {'Equipment Code': 'EQP_CNT'}
         mr_av_data = mr_equipment_data.groupby(by=cols, as_index=False).agg(aggs)
         mr_av_data = mr_av_data.rename(columns=names)
+
+        ## New version - worked
+        excellent_filtered_mr_data = filtered_meeting_rooms_data[filtered_meeting_rooms_data['Room Condition 2018'] == 'Excellent']
+        verygood_filtered_mr_data = filtered_meeting_rooms_data[filtered_meeting_rooms_data['Room Condition 2018'] == 'Very Good']
+        good_filtered_mr_data = filtered_meeting_rooms_data[filtered_meeting_rooms_data['Room Condition 2018'] == 'Good']
+        cols = ['Campus Code','Building Code','Building Name']
+        aggs = {'Room Code':pd.Series.nunique,'Room Capacity':sum}
+        names = {"Room Code": "EX_MR_CNT", "Room Capacity": "EX_MR_CAP"}
+        excellent_mr_data = excellent_filtered_mr_data.groupby(by=cols, as_index=False).agg(aggs)
+        excellent_mr_data = excellent_mr_data.rename(columns=names)
+        names = {"Room Code": "VG_MR_CNT", "Room Capacity": "VG_MR_CAP"}
+        verygood_mr_data = verygood_filtered_mr_data.groupby(by=cols, as_index=False).agg(aggs)
+        verygood_mr_data = verygood_mr_data.rename(columns=names)
+        names = {"Room Code": "G_MR_CNT", "Room Capacity": "G_MR_CAP"}
+        good_mr_data = good_filtered_mr_data.groupby(by=cols, as_index=False).agg(aggs)
+        good_mr_data = good_mr_data.rename(columns=names)
+
+        cols = ['Campus Code','Building Code','Building Name']
+        names = {"Room Area m²": "AG_MR_SZ"}
+        mr_data_area = filtered_meeting_rooms_data.groupby(by=cols, as_index=False)['Room Area m²'].mean()
+        mr_data_area = mr_data_area.rename(columns=names)
+
+        cols = ['Campus Code','Building Code','Building Name_x']
+        names = {"Meetings": "TOTAL_M"}
+        mr_usage = filtered_mr_usage_data.groupby(by=cols, as_index=False)["Meetings"].sum()
+        mr_usage = mr_usage.rename(columns=names)
+
+        ## New version TR - worked
+        excellent_filtered_tr_data = filtered_toilets_data[filtered_toilets_data['Room Condition 2018'] == 'Excellent']
+        verygood_filtered_tr_data = filtered_toilets_data[filtered_toilets_data['Room Condition 2018'] == 'Very Good']
+        good_filtered_tr_data = filtered_toilets_data[filtered_toilets_data['Room Condition 2018'] == 'Good']
+        cols = ['Campus Code','Building Code','Building Name']
+        aggs = {'Room Code':pd.Series.nunique,'Room Capacity':sum}
+        names = {"Room Code": "EX_TR_CNT", "Room Capacity": "EX_TR_CAP"}
+        excellent_tr_data = excellent_filtered_tr_data.groupby(by=cols, as_index=False).agg(aggs)
+        excellent_tr_data = excellent_tr_data.rename(columns=names)
+        names = {"Room Code": "VG_TR_CNT", "Room Capacity": "VG_TR_CAP"}
+        verygood_tr_data = verygood_filtered_tr_data.groupby(by=cols, as_index=False).agg(aggs)
+        verygood_tr_data = verygood_tr_data.rename(columns=names)
+        names = {"Room Code": "G_TR_CNT", "Room Capacity": "G_TR_CAP"}
+        good_tr_data = good_filtered_tr_data.groupby(by=cols, as_index=False).agg(aggs)
+        good_tr_data = good_tr_data.rename(columns=names)
+
+        cols = ['Campus Code','Building Code','Building Name']
+        names = {"Room Area m²": "AG_TR_SZ"}
+        tr_data_area = filtered_toilets_data.groupby(by=cols, as_index=False)['Room Area m²'].mean()
+        tr_data_area = tr_data_area.rename(columns=names)
+
+        cols = ['Campus Code','Building Code','Building Name']
+        names = {"Class Duration In Minutes": "AG_CL_DS"}
+        cl_timetable = filtered_timetable_data.groupby(by=cols, as_index=False)["Class Duration In Minutes"].mean()
+        cl_timetable = cl_timetable.rename(columns=names)
+
         ###### ---------------------------------- ######
 
         # create sink for new output layer
@@ -270,6 +322,66 @@ class DataEnhancer(QgsProcessingAlgorithm):
             else:
                 feature['STU_CNT'] = QVariant()
 
+            ex_mr_cap = _features.get_data_for_key(excellent_mr_data, feature[search_key], 'EX_MR_CAP')
+            if ex_mr_cap:
+                feature['EX_MR_CAP'] = int(ex_mr_cap)
+            else:
+                feature['EX_MR_CAP'] = QVariant()
+
+            vg_mr_cap = _features.get_data_for_key(verygood_mr_data, feature[search_key], 'VG_MR_CAP')
+            if vg_mr_cap:
+                feature['VG_MR_CAP'] = int(vg_mr_cap)
+            else:
+                feature['VG_MR_CAP'] = QVariant()
+
+            g_mr_cap = _features.get_data_for_key(good_mr_data, feature[search_key], 'G_MR_CAP')
+            if g_mr_cap:
+                feature['G_MR_CAP'] = int(g_mr_cap)
+            else:
+                feature['G_MR_CAP'] = QVariant()
+
+            avg_mr_area = _features.get_data_for_key(mr_data_area, feature[search_key], 'AG_MR_SZ')
+            if avg_mr_area:
+                feature['AG_MR_SZ'] = float(avg_mr_area)
+            else:
+                feature['AG_MR_SZ'] = QVariant()
+
+            total_m = _features.get_data_for_key(mr_usage, feature[search_key], 'TOTAL_M')
+            if total_m:
+                feature['TOTAL_M'] = int(total_m)
+            else:
+                feature['TOTAL_M'] = QVariant()
+
+            ex_tr_cap = _features.get_data_for_key(excellent_tr_data, feature[search_key], 'EX_TR_CAP')
+            if ex_tr_cap:
+                feature['EX_TR_CAP'] = int(ex_tr_cap)
+            else:
+                feature['EX_TR_CAP'] = QVariant()
+
+            vg_tr_cap = _features.get_data_for_key(verygood_tr_data, feature[search_key], 'VG_TR_CAP')
+            if vg_mr_cap:
+                feature['VG_TR_CAP'] = int(vg_tr_cap)
+            else:
+                feature['VG_TR_CAP'] = QVariant()
+
+            g_tr_cap = _features.get_data_for_key(good_tr_data, feature[search_key], 'G_TR_CAP')
+            if g_tr_cap:
+                feature['G_TR_CAP'] = int(g_tr_cap)
+            else:
+                feature['G_TR_CAP'] = QVariant()
+
+            avg_tr_area = _features.get_data_for_key(tr_data_area, feature[search_key], 'AG_TR_SZ')
+            if avg_tr_area:
+                feature['AG_TR_SZ'] = float(avg_tr_area)
+            else:
+                feature['AG_TR_SZ'] = QVariant()
+
+            ag_cl_ds = _features.get_data_for_key(cl_timetable, feature[search_key], 'AG_CL_DS')
+            if ag_cl_ds:
+                feature['AG_CL_DS'] = float(ag_cl_ds)
+            else:
+                feature['AG_CL_DS'] = QVariant()
+
             # connect index with attributes
             attr_value={
                 attr_indexes['MR_WEIGHTS']: feature['MR_WEIGHTS'],
@@ -280,7 +392,17 @@ class DataEnhancer(QgsProcessingAlgorithm):
                 attr_indexes['TR_CAP']: feature['TR_CAP'],
                 attr_indexes['EMP_CNT']: feature['EMP_CNT'],
                 attr_indexes['EQP_CNT']: feature['EQP_CNT'],
-                attr_indexes['STU_CNT']: feature['STU_CNT']
+                attr_indexes['STU_CNT']: feature['STU_CNT'],
+                attr_indexes['EX_MR_CAP']: feature['EX_MR_CAP'],
+                attr_indexes['VG_MR_CAP']: feature['VG_MR_CAP'],
+                attr_indexes['G_MR_CAP']: feature['G_MR_CAP'],
+                attr_indexes['AG_MR_SZ']: feature['AG_MR_SZ'],
+                attr_indexes['TOTAL_M']: feature['TOTAL_M'],
+                attr_indexes['EX_TR_CAP']: feature['EX_TR_CAP'],
+                attr_indexes['VG_TR_CAP']: feature['VG_TR_CAP'],
+                attr_indexes['G_TR_CAP']: feature['G_TR_CAP'],
+                attr_indexes['AG_TR_SZ']: feature['AG_TR_SZ'],
+                attr_indexes['AG_CL_DS']: feature['AG_CL_DS']
             }
             layer_provider.changeAttributeValues({id:attr_value})
             if (update == "false"):
@@ -380,6 +502,76 @@ class LayerManager():
         layer_provider.addAttributes([QgsField("STU_CNT",  QVariant.Int)])
         layer.updateFields()
 
+        idx = layer.fields().indexFromName('EX_MR_CAP')
+        if idx != -1:
+            layer_provider.deleteAttributes([idx])
+            layer.updateFields()
+        layer_provider.addAttributes([QgsField("EX_MR_CAP",  QVariant.Int)])
+        layer.updateFields()
+
+        idx = layer.fields().indexFromName('VG_MR_CAP')
+        if idx != -1:
+            layer_provider.deleteAttributes([idx])
+            layer.updateFields()
+        layer_provider.addAttributes([QgsField("VG_MR_CAP",  QVariant.Int)])
+        layer.updateFields()
+
+        idx = layer.fields().indexFromName('G_MR_CAP')
+        if idx != -1:
+            layer_provider.deleteAttributes([idx])
+            layer.updateFields()
+        layer_provider.addAttributes([QgsField("G_MR_CAP",  QVariant.Int)])
+        layer.updateFields()
+
+        idx = layer.fields().indexFromName('AG_MR_SZ')
+        if idx != -1:
+            layer_provider.deleteAttributes([idx])
+            layer.updateFields()
+        layer_provider.addAttributes([QgsField("AG_MR_SZ",  QVariant.Double)])
+        layer.updateFields()
+
+        idx = layer.fields().indexFromName('TOTAL_M')
+        if idx != -1:
+            layer_provider.deleteAttributes([idx])
+            layer.updateFields()
+        layer_provider.addAttributes([QgsField("TOTAL_M",  QVariant.Int)])
+        layer.updateFields()
+
+        idx = layer.fields().indexFromName('EX_TR_CAP')
+        if idx != -1:
+            layer_provider.deleteAttributes([idx])
+            layer.updateFields()
+        layer_provider.addAttributes([QgsField("EX_TR_CAP",  QVariant.Int)])
+        layer.updateFields()
+
+        idx = layer.fields().indexFromName('VG_TR_CAP')
+        if idx != -1:
+            layer_provider.deleteAttributes([idx])
+            layer.updateFields()
+        layer_provider.addAttributes([QgsField("VG_TR_CAP",  QVariant.Int)])
+        layer.updateFields()
+
+        idx = layer.fields().indexFromName('G_TR_CAP')
+        if idx != -1:
+            layer_provider.deleteAttributes([idx])
+            layer.updateFields()
+        layer_provider.addAttributes([QgsField("G_TR_CAP",  QVariant.Int)])
+        layer.updateFields()
+
+        idx = layer.fields().indexFromName('AG_TR_SZ')
+        if idx != -1:
+            layer_provider.deleteAttributes([idx])
+            layer.updateFields()
+        layer_provider.addAttributes([QgsField("AG_TR_SZ",  QVariant.Double)])
+        layer.updateFields()
+
+        idx = layer.fields().indexFromName('AG_CL_DS')
+        if idx != -1:
+            layer_provider.deleteAttributes([idx])
+            layer.updateFields()
+        layer_provider.addAttributes([QgsField("AG_CL_DS",  QVariant.Double)])
+        layer.updateFields()
+
     def get_indexes_of_attributes(self, layer_provider):
         return {
             "MR_WEIGHTS": layer_provider.fieldNameIndex('MR_WEIGHTS'),
@@ -390,7 +582,17 @@ class LayerManager():
             "TR_CAP": layer_provider.fieldNameIndex('TR_CAP'),
             "EMP_CNT": layer_provider.fieldNameIndex('EMP_CNT'),
             "EQP_CNT": layer_provider.fieldNameIndex('EQP_CNT'),
-            "STU_CNT": layer_provider.fieldNameIndex('STU_CNT')
+            "STU_CNT": layer_provider.fieldNameIndex('STU_CNT'),
+            "EX_MR_CAP": layer_provider.fieldNameIndex('EX_MR_CAP'),
+            "VG_MR_CAP": layer_provider.fieldNameIndex('VG_MR_CAP'),
+            "G_MR_CAP": layer_provider.fieldNameIndex('G_MR_CAP'),
+            "AG_MR_SZ": layer_provider.fieldNameIndex('AG_MR_SZ'),
+            "TOTAL_M": layer_provider.fieldNameIndex('TOTAL_M'),
+            "EX_TR_CAP": layer_provider.fieldNameIndex('EX_TR_CAP'),
+            "VG_TR_CAP": layer_provider.fieldNameIndex('VG_TR_CAP'),
+            "G_TR_CAP": layer_provider.fieldNameIndex('G_TR_CAP'),
+            "AG_TR_SZ": layer_provider.fieldNameIndex('AG_TR_SZ'),
+            "AG_CL_DS": layer_provider.fieldNameIndex('AG_CL_DS')
         }
 
 class DataExtractor():
@@ -450,6 +652,13 @@ class DataExtractor():
         if campus_code:
             return timetable_data[timetable_data['Campus Code'] == campus_code]
         return timetable_data
+
+    def get_meeting_room_usage_data(self, campus_code = None):
+        mr_usage_data = self.mr_usage_data
+        if campus_code:
+            return mr_usage_data[mr_usage_data['Campus Code'] == campus_code]
+        return mr_usage_data
+
 
 ######### -------------------- HELPERS -------------- ################
 class DataProcessor():
