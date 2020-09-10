@@ -155,70 +155,70 @@ def get_reward(node, objective, factors):
         
         return reward
 
-elif objective == 1:
-    targetRewardKey = "TR_WEIGHTS"
-    reward = node[targetRewardKey]
-    if node[targetRewardKey] == None:
-        return 0
-
-    if "REQUIRED_CAPACITY" in factors:
-        capacity = float(node["TR_CAP"])
-        if capacity < float(factors["REQUIRED_CAPACITY"]):
+    elif objective == 1:
+        targetRewardKey = "TR_WEIGHTS"
+        reward = node[targetRewardKey]
+        if node[targetRewardKey] == None:
             return 0
+
+        if "REQUIRED_CAPACITY" in factors:
+            capacity = float(node["TR_CAP"])
+            if capacity < float(factors["REQUIRED_CAPACITY"]):
+                return 0
+            
+        if "COVID_LOCKDOWN" in factors:
+            situation = factors["COVID_LOCKDOWN"].lower()
+            if situation == "high":
+                # demand is 0
+                reward = float(node["TR_CAP"])
+            elif situation == "medium":
+                # demand is 25%
+                demand = node["STU_CNT"] * 0.05
+                reward = float(node["TR_CAP"]/demand)
+            else:
+                # demand is 50%
+                demand = node["STU_CNT"] * 0.50
+                reward = float(node["TR_CAP"]/demand)
+
+        if "HIGH_CAPACITY" in factors:
+            if factors["HIGH_CAPACITY"]:
+                if node["AG_TR_SZ"]:
+                    adj = node["AG_TR_SZ"]/stats.total_tr_average_room_size
+                    reward = reward * adj
+                else:
+                    reward = reward * 0
+
+        if "EASY_AVAILABILITY" in factors:
+            if factors["EASY_AVAILABILITY"]:
+                if node["AG_CL_DS"]:
+                    adj = node["AG_CL_DS"]/stats.total_duration_mins
+                    reward = reward * (1-adj)
+                else:
+                    reward = reward * 0
+
+        if "ROOM_CONDITION" in factors:
+            condition = factors["ROOM_CONDITION"].lower()
+            if condition == "excellent":
+                if node["EX_TR_CAP"]:
+                    adj = node["EX_TR_CAP"]/stats.total_excellent_tr_cap
+                    reward = reward * adj
+                else:
+                    reward = reward * 0
+            elif condition == "verygood":
+                if node["VG_TR_CAP"]:
+                    adj = node["VG_TR_CAP"]/stats.total_verygood_tr_cap
+                    reward = reward * adj
+                else:
+                    reward = reward * 0
+            elif condition == "good":
+                if node["G_TR_CAP"]:
+                    adj = node["G_TR_CAP"]/stats.total_good_tr_cap
+                    reward = reward * adj
+                else:
+                    reward = reward * 0
+            
+        return reward
         
-    if "COVID_LOCKDOWN" in factors:
-        situation = factors["COVID_LOCKDOWN"].lower()
-        if situation == "high":
-            # demand is 0
-            reward = float(node["TR_CAP"])
-        elif situation == "medium":
-            # demand is 25%
-            demand = node["STU_CNT"] * 0.05
-            reward = float(node["TR_CAP"]/demand)
-        else:
-            # demand is 50%
-            demand = node["STU_CNT"] * 0.50
-            reward = float(node["TR_CAP"]/demand)
-
-    if "HIGH_CAPACITY" in factors:
-        if factors["HIGH_CAPACITY"]:
-            if node["AG_TR_SZ"]:
-                adj = node["AG_TR_SZ"]/stats.total_tr_average_room_size
-                reward = reward * adj
-            else:
-                reward = reward * 0
-
-    if "EASY_AVAILABILITY" in factors:
-        if factors["EASY_AVAILABILITY"]:
-            if node["AG_CL_DS"]:
-                adj = node["AG_CL_DS"]/stats.total_duration_mins
-                reward = reward * (1-adj)
-            else:
-                reward = reward * 0
-
-    if "ROOM_CONDITION" in factors:
-        condition = factors["ROOM_CONDITION"].lower()
-        if condition == "excellent":
-            if node["EX_TR_CAP"]:
-                adj = node["EX_TR_CAP"]/stats.total_excellent_tr_cap
-                reward = reward * adj
-            else:
-                reward = reward * 0
-        elif condition == "verygood":
-            if node["VG_TR_CAP"]:
-                adj = node["VG_TR_CAP"]/stats.total_verygood_tr_cap
-                reward = reward * adj
-            else:
-                reward = reward * 0
-        elif condition == "good":
-            if node["G_TR_CAP"]:
-                adj = node["G_TR_CAP"]/stats.total_good_tr_cap
-                reward = reward * adj
-            else:
-                reward = reward * 0
-        
-    return reward
-    
 def get_cost(node1, node2):
     return node2.geometry().distance(node1.geometry())
     
