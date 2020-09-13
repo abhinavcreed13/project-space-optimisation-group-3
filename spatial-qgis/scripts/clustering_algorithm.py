@@ -541,17 +541,16 @@ class Cluster():
     def get_cost(self,node1, node2):
         return node2.geometry().distance(node1.geometry())
     
-    def KMEANS(self,data,show_plot = False):
+    def KMEANS(self,data):
         X = data.to_numpy()
         model = KMeans(n_clusters=3,init='k-means++')
         model.fit(X)
         yhat = model.fit_predict(X)
         clusters = unique(yhat)
         self.get_building(model,X)
-        if show_plot :
-            for cluster in clusters:
-                row_ix = where(yhat == cluster)
-                plt.scatter(X[row_ix, 0], X[row_ix, 1])
+        for cluster in clusters:
+            row_ix = where(yhat == cluster)
+            plt.scatter(X[row_ix, 0], X[row_ix, 1])
             plt.title('KMEANS')
             plt.legend(clusters)
             plt.show()
