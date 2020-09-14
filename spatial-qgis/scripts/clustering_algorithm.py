@@ -36,6 +36,11 @@ from numpy import where
 import numpy as np
 from sklearn.cluster import KMeans
 from qgis.core import QgsProject
+import os
+from PIL import Image
+from threading import Thread
+from os import path
+import matplotlib.image as mpimg
 
 class SoftHalt (Exception):
     def __init__ (self):
@@ -187,6 +192,13 @@ class ClusteringAlgo(QgsProcessingAlgorithm):
                 'Prioritize meeting rooms with equipments',
             )
         )
+        
+        self.addParameter(
+            QgsProcessingParameterBoolean(
+                self.SCATTER_PLOT,
+                'Enable Plot ?',
+            )
+        )
 
         self.addParameter(
             QgsProcessingParameterEnum(
@@ -209,13 +221,6 @@ class ClusteringAlgo(QgsProcessingAlgorithm):
                 self.REQUIRED_CAPACITY,
                 'Do you have any specific capacity requirement?',
                 defaultValue="NA"
-            )
-        )
-        
-        self.addParameter(
-            QgsProcessingParameterBoolean(
-                self.SCATTER_PLOT,
-                'Enable Plot ?',
             )
         )
 
@@ -319,7 +324,7 @@ class ClusteringAlgo(QgsProcessingAlgorithm):
         # using provided layer - connected via reference
         layer = source
         stats = DataStats(layer)
-        obj = Cluster(feedback)
+        obj = Cluster(feedback,stats)
 
         for feature in layer.getFeatures():
             if str(feature[search_key]) == str(current_building):
@@ -339,6 +344,7 @@ class ClusteringAlgo(QgsProcessingAlgorithm):
             v_s, v_i = node
             cost.append(obj.get_cost(v_s, v_i))
             reward.append(obj.get_reward(v_i, objective, factors))
+        df = pd.DataFrame()
         df['COST']= cost
         df['REWARD'] = reward
         
@@ -394,8 +400,9 @@ class DataStats():
 
 
 class Cluster():
-    def __init__(self, feedback):
+    def __init__(self, feedback,stats):
         self.feedback = feedback
+        self.stats = stats
 
     def get_reward(self,node, objective, factors):
         if objective == 0:
@@ -426,7 +433,7 @@ class Cluster():
             if "HIGH_CAPACITY" in factors:
                 if factors["HIGH_CAPACITY"]:
                     if node["AG_MR_SZ"]:
-                        adj = node["AG_MR_SZ"]/stats.total_average_room_size
+                        adj = node["AG_MR_SZ"]/self.stats.total_average_room_size
                         reward = reward * adj
                     else:
                         reward = reward * 0
@@ -434,7 +441,7 @@ class Cluster():
             if "EASY_AVAILABILITY" in factors:
                 if factors["EASY_AVAILABILITY"]:
                     if node["TOTAL_M"]:
-                        adj = node["TOTAL_M"]/stats.total_meetings
+                        adj = node["TOTAL_M"]/self.stats.total_meetings
                         reward = reward * (1-adj)
                     else:
                         reward = reward * 0
@@ -443,7 +450,7 @@ class Cluster():
             if "WITH_EQUIPMENTS" in factors:
                 if factors["WITH_EQUIPMENTS"]:
                     if node["EQP_CNT"]:
-                        total_eqp = stats.total_equipments
+                        total_eqp = self.stats.total_equipments
                         adj = node["EQP_CNT"]/total_eqp
                         reward = reward * adj
                     else:
@@ -454,19 +461,19 @@ class Cluster():
                 condition = factors["ROOM_CONDITION"].lower()
                 if condition == "excellent":
                     if node["EX_MR_CAP"]:
-                        adj = node["EX_MR_CAP"]/stats.total_excellent_mr_cap
+                        adj = node["EX_MR_CAP"]/self.stats.total_excellent_mr_cap
                         reward = reward * adj
                     else:
                         reward = reward * 0
                 elif condition == "verygood":
                     if node["VG_MR_CAP"]:
-                        adj = node["VG_MR_CAP"]/stats.total_verygood_mr_cap
+                        adj = node["VG_MR_CAP"]/self.stats.total_verygood_mr_cap
                         reward = reward * adj
                     else:
                         reward = reward * 0
                 elif condition == "good":
                     if node["G_MR_CAP"]:
-                        adj = node["G_MR_CAP"]/stats.total_good_mr_cap
+                        adj = node["G_MR_CAP"]/self.stats.total_good_mr_cap
                         reward = reward * adj
                     else:
                         reward = reward * 0
@@ -501,7 +508,7 @@ class Cluster():
             if "HIGH_CAPACITY" in factors:
                 if factors["HIGH_CAPACITY"]:
                     if node["AG_TR_SZ"]:
-                        adj = node["AG_TR_SZ"]/stats.total_tr_average_room_size
+                        adj = node["AG_TR_SZ"]/self.stats.total_tr_average_room_size
                         reward = reward * adj
                     else:
                         reward = reward * 0
@@ -509,7 +516,7 @@ class Cluster():
             if "EASY_AVAILABILITY" in factors:
                 if factors["EASY_AVAILABILITY"]:
                     if node["AG_CL_DS"]:
-                        adj = node["AG_CL_DS"]/stats.total_duration_mins
+                        adj = node["AG_CL_DS"]/self.stats.total_duration_mins
                         reward = reward * (1-adj)
                     else:
                         reward = reward * 0
@@ -518,19 +525,19 @@ class Cluster():
                 condition = factors["ROOM_CONDITION"].lower()
                 if condition == "excellent":
                     if node["EX_TR_CAP"]:
-                        adj = node["EX_TR_CAP"]/stats.total_excellent_tr_cap
+                        adj = node["EX_TR_CAP"]/self.stats.total_excellent_tr_cap
                         reward = reward * adj
                     else:
                         reward = reward * 0
                 elif condition == "verygood":
                     if node["VG_TR_CAP"]:
-                        adj = node["VG_TR_CAP"]/stats.total_verygood_tr_cap
+                        adj = node["VG_TR_CAP"]/self.stats.total_verygood_tr_cap
                         reward = reward * adj
                     else:
                         reward = reward * 0
                 elif condition == "good":
                     if node["G_TR_CAP"]:
-                        adj = node["G_TR_CAP"]/stats.total_good_tr_cap
+                        adj = node["G_TR_CAP"]/self.stats.total_good_tr_cap
                         reward = reward * adj
                     else:
                         reward = reward * 0
@@ -541,21 +548,31 @@ class Cluster():
     def get_cost(self,node1, node2):
         return node2.geometry().distance(node1.geometry())
     
-    def KMEANS(self,data):
+    def KMEANS(self,data,scatter_plot_enabled):
+        plt.clf()
         X = data.to_numpy()
         model = KMeans(n_clusters=3,init='k-means++')
         model.fit(X)
         yhat = model.fit_predict(X)
         clusters = unique(yhat)
         self.get_building(model,X)
-        for cluster in clusters:
-            row_ix = where(yhat == cluster)
-            plt.scatter(X[row_ix, 0], X[row_ix, 1])
-            plt.title('KMEANS')
-            plt.legend(clusters)
-            plt.show()
+        if scatter_plot_enabled:
+            for cluster in clusters:
+                row_ix = where(yhat == cluster)
+                plt.scatter(X[row_ix, 0], X[row_ix, 1])
+            plt.title('K MEANS')
+            if path.exists("plot.png"):
+                os.remove("plot.png")
+            plt.savefig('plot.png')
+            process = Thread(target=self.plot, args=[])
+            process.start()
         else:
             pass
+    
+    def plot(self):
+        im = Image.open('plot.png')
+        im.show()
+        
     
     def get_building(self,model,data):
         cluster_info = {}
