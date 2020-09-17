@@ -246,17 +246,18 @@ def get_building(model,data):
     for index,key in enumerate(points):
         x  = [] 
         y = []
-    for index,value in enumerate(points[key]):
-        x.append(data[value,0])
-        y.append(data[value,1])
+        for index,value in enumerate(points[key]):
+            x.append(data[value,0])
+            y.append(data[value,1])
       
-    cluster_info[key] = {
-        'ymin':np.round(min(y),4),
-        'ymax':np.round(max(y),4),
-        'xmin':np.round(min(x),4),
-        'xmax':np.round(max(x),4),
-        'avg' :np.average(y)
-    }
+        cluster_info[key] = {
+            'ymin':np.round(min(y),4),
+            'ymax':np.round(max(y),4),
+            'xmin':np.round(min(x),4),
+            'xmax':np.round(max(x),4),
+            'avg' :np.average(y)
+        }
+    print(cluster_info)
     avg = -9999
     cluster = 9999
     for index,key in enumerate(cluster_info):
@@ -270,7 +271,7 @@ def get_building(model,data):
             min1=str(cluster_info[cluster]['xmin']), max1 = str(cluster_info[cluster]['xmax']), re = str(np.round(cluster_info[cluster]['avg'],2)) ))
 
       
-starting_node = '104'
+starting_node = '161'
 for feature in layer.getFeatures():
     if str(feature[search_key]) == str(starting_node):
         print(feature["NAME"])
@@ -293,5 +294,5 @@ for node in graph:
 df['COST']= cost
 df['REWARD'] = reward
 
-KMEANS(df,False)
+KMEANS(df,True)
 

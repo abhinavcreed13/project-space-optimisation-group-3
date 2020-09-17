@@ -35,12 +35,8 @@ from numpy import unique
 from numpy import where
 import numpy as np
 from sklearn.cluster import KMeans
-from qgis.core import QgsProject
 import os
-from PIL import Image
-from threading import Thread
 from os import path
-import matplotlib.image as mpimg
 
 class SoftHalt (Exception):
     def __init__ (self):
@@ -554,7 +550,6 @@ class Cluster():
                         reward = reward * adj
                     else:
                         reward = reward * 0
-                
             return reward
     
     
@@ -578,15 +573,8 @@ class Cluster():
             if path.exists(plot_path+"plot.png"):
                 os.remove(plot_path+"plot.png")
             plt.savefig(plot_path+'plot.png')
-            #process = Thread(target=self.plot, args=[])
-            #process.start()
         else:
             pass
-            
-    # def plot(self):
-    #     im = Image.open('plot.png')
-    #     im.show()
-        
     
     def get_building(self,model,data):
         cluster_info = {}
@@ -594,17 +582,16 @@ class Cluster():
         for index,key in enumerate(points):
             x  = [] 
             y = []
-        for index,value in enumerate(points[key]):
-            x.append(data[value,0])
-            y.append(data[value,1])
-          
-        cluster_info[key] = {
-            'ymin':np.round(min(y),4),
-            'ymax':np.round(max(y),4),
-            'xmin':np.round(min(x),4),
-            'xmax':np.round(max(x),4),
-            'avg' :np.average(y)
-        }
+            for index,value in enumerate(points[key]):
+                x.append(data[value,0])
+                y.append(data[value,1])
+            cluster_info[key] = {
+                'ymin':np.round(min(y),4),
+                'ymax':np.round(max(y),4),
+                'xmin':np.round(min(x),4),
+                'xmax':np.round(max(x),4),
+                'avg' :np.average(y)
+            }
         avg = -9999
         cluster = 9999
         for index,key in enumerate(cluster_info):
