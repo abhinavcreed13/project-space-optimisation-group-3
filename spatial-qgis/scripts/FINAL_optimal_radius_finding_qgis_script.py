@@ -99,7 +99,7 @@ class ClusteringAlgo(QgsProcessingAlgorithm):
         Returns the translated algorithm name, which should be used for any
         user-visible display of the algorithm name.
         """
-        return self.tr("Finding optimal radius script")
+        return self.tr("Finding Optimal Radius script")
 
     def group(self):
         """
