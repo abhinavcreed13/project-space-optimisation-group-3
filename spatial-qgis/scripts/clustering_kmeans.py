@@ -267,6 +267,18 @@ def get_building(model,data):
     if (cluster == 9999):
         pass
     else:
+        min_distance = cluster_info[cluster]['xmin']
+        max_distance = cluster_info[cluster]['xmin']+100
+        max_reward = -99
+        delta = -99
+        for index,value in enumerate(points[cluster]):
+            if data[value,0] <= max_distance and data[value,1] > max_reward:
+                max_reward = data[value,1]
+                delta = data[value,0] - min_distance
+                print(data[value,0])
+        print('delta',delta)
+        
+                
         print('Range for optimum building is : {min1} to {max1} meters with avegrage reward {re}.'.format(
             min1=str(cluster_info[cluster]['xmin']), max1 = str(cluster_info[cluster]['xmax']), re = str(np.round(cluster_info[cluster]['avg'],2)) ))
 
@@ -294,5 +306,5 @@ for node in graph:
 df['COST']= cost
 df['REWARD'] = reward
 
-KMEANS(df,True)
+KMEANS(df,False)
 
