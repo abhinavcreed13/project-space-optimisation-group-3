@@ -11,6 +11,7 @@
 #   WITH_EQUIPMENTS: True/False,
 #   ROOM_CONDITION: Excellent/Very Good/Good
 # }
+
 # Objective = 1
 # {
 #   REQUIRED_CAPACITY: <number>,
@@ -26,6 +27,10 @@ from numpy import unique
 from numpy import where
 import numpy as np
 from sklearn.cluster import KMeans
+from sklearn.cluster import Birch
+from sklearn.cluster import MiniBatchKMeans
+from sklearn.cluster import AgglomerativeClustering
+from sklearn.mixture import GaussianMixture
 
 campus_code = "PAR"
 layer_name = "PAR_BUILDING_OUTLINE_WITH_DATA"
@@ -223,22 +228,136 @@ def get_cost(node1, node2):
     return node2.geometry().distance(node1.geometry())
     
     
-def KMEANS(data,show_plot):
+def get_all_clustering_results(data):
+    f = plt.figure()
+    f, axes = plt.subplots(nrows = 3, ncols = 2,figsize=(5, 15))
+    f.subplots_adjust(left=None, bottom=None, right=None, top=None, wspace=None, hspace=1)
+    
     X = data.to_numpy()
     model = KMeans(n_clusters=3,init='k-means++')
     model.fit(X)
     yhat = model.fit_predict(X)
     clusters = unique(yhat)
+    print('----------KMeans---------- \n')
     get_building(model,X)
-    if show_plot :
-        for cluster in clusters:
-            row_ix = where(yhat == cluster)
-            plt.scatter(X[row_ix, 0], X[row_ix, 1])
-        plt.title('KMEANS')
-        plt.legend(clusters)
-        plt.show()
-    else:
+    for cluster in clusters:
+        row_ix = where(yhat == cluster)
+        axes[0][0].scatter(X[row_ix, 0], X[row_ix, 1])
+    axes[0][0].set_xlabel('Cost')
+    axes[0][0].set_ylabel('Reward')
+    axes[0][0].title.set_text('Kmeans')
+    axes[0][0].legend(clusters,loc="upper right")
+   
+    model_B = Birch(threshold=0.01, n_clusters=3)
+    model_B.fit(X)
+    yhat = model_B.predict(X)
+    clusters = unique(yhat)
+    print('\n----------BIRCH---------- ')
+    get_building(model_B,X)
+    for cluster in clusters:
+        row_ix = where(yhat == cluster)
+        axes[0][1].scatter(X[row_ix, 0], X[row_ix, 1])
+    axes[0][1].set_xlabel('Cost')
+    axes[0][1].set_ylabel('Reward')
+    axes[0][1].legend(clusters,loc="upper right")
+    axes[0][1].title.set_text('Birch')
+    
+    model_A = AgglomerativeClustering(n_clusters=3,linkage="ward")
+    yhat = model_A.fit_predict(X)
+    clusters = unique(yhat)
+    print('\n----------Agglomerative Clustering----------')
+    get_building(model_A,X)
+    
+    for cluster in clusters:
+        row_ix = where(yhat == cluster)
+        axes[1][0].scatter(X[row_ix, 0], X[row_ix, 1])
+    axes[1][0].set_xlabel('Cost')
+    axes[1][0].set_ylabel('Reward')
+    axes[1][0].legend(clusters,loc="upper right")
+    axes[1][0].title.set_text('Agglomerative Clustering')
+    
+    
+    model_G = GaussianMixture(n_components=3)
+    model_G.fit(X)
+    yhat = model_G.predict(X)
+    clusters = unique(yhat)
+    print('\n----------Gaussian Mixture Models----------')
+    get_building_GMM(model_G,yhat,X)
+    
+    for cluster in clusters:
+        row_ix = where(yhat == cluster)
+        axes[1][1].scatter(X[row_ix, 0], X[row_ix, 1])
+    axes[1][1].set_xlabel('Cost')
+    axes[1][1].set_ylabel('Reward')
+    axes[1][1].legend(clusters,loc="upper right")
+    axes[1][1].title.set_text('Gaussian Mixture Models')
+    
+    
+    model_M = MiniBatchKMeans(n_clusters=3)
+    model_M.fit(X)
+    yhat = model_M.predict(X)
+    clusters = unique(yhat)
+    print('\n----------Mini Kmeans----------')
+    get_building(model_M,X)
+    for cluster in clusters:
+        row_ix = where(yhat == cluster)
+        axes[2][0].scatter(X[row_ix, 0], X[row_ix, 1])
+    axes[2][0].set_xlabel('Cost')
+    axes[2][0].set_ylabel('Reward')
+    axes[2][0].legend(clusters,loc="upper right")
+    axes[2][0].title.set_text('Mini Kmeans')
+    
+    axes[2][1].axis('off')
+  
+    
+    
+    
+    
+    
+    
+    
+    plt.show()
+
+def get_building_GMM(model,yhat,data):
+    cluster_info = {}
+    points = {index: np.where(yhat == index)[0] for index in range(3)}
+    for index,key in enumerate(points):
+        x  = [] 
+        y = []
+        for index,value in enumerate(points[key]):
+            x.append(data[value,0])
+            y.append(data[value,1])
+      
+        cluster_info[key] = {
+            'ymin':np.round(min(y),4),
+            'ymax':np.round(max(y),4),
+            'xmin':np.round(min(x),4),
+            'xmax':np.round(max(x),4),
+            'avg' :np.average(y)
+        }
+    avg = -9999
+    cluster = 9999
+    for index,key in enumerate(cluster_info):
+        if cluster_info[key]['avg'] > avg:
+          avg = cluster_info[key]['avg']
+          cluster = key
+    if (cluster == 9999):
         pass
+    else:
+        min_distance = cluster_info[cluster]['xmin']
+        max_distance = cluster_info[cluster]['xmin']+100
+        max_reward = -99
+        delta = -99
+        for index,value in enumerate(points[cluster]):
+            if data[value,0] <= max_distance and data[value,1] > max_reward:
+                max_reward = data[value,1]
+                delta = data[value,0] - min_distance
+        print('delta',delta)
+        
+                
+        print('Range for optimum building is : {min1} to {max1} meters with avegrage reward {re}.'.format(
+            min1=str(cluster_info[cluster]['xmin']), max1 = str(cluster_info[cluster]['xmax']), re = str(np.round(cluster_info[cluster]['avg'],2)) ))
+
 
 def get_building(model,data):
     cluster_info = {}
@@ -257,7 +376,6 @@ def get_building(model,data):
             'xmax':np.round(max(x),4),
             'avg' :np.average(y)
         }
-    print(cluster_info)
     avg = -9999
     cluster = 9999
     for index,key in enumerate(cluster_info):
@@ -267,6 +385,17 @@ def get_building(model,data):
     if (cluster == 9999):
         pass
     else:
+        min_distance = cluster_info[cluster]['xmin']
+        max_distance = cluster_info[cluster]['xmin']+100
+        max_reward = -99
+        delta = -99
+        for index,value in enumerate(points[cluster]):
+            if data[value,0] <= max_distance and data[value,1] > max_reward:
+                max_reward = data[value,1]
+                delta = data[value,0] - min_distance
+        print('delta',delta)
+        
+                
         print('Range for optimum building is : {min1} to {max1} meters with avegrage reward {re}.'.format(
             min1=str(cluster_info[cluster]['xmin']), max1 = str(cluster_info[cluster]['xmax']), re = str(np.round(cluster_info[cluster]['avg'],2)) ))
 
@@ -294,5 +423,4 @@ for node in graph:
 df['COST']= cost
 df['REWARD'] = reward
 
-KMEANS(df,True)
-
+get_all_clustering_results(df)
