@@ -368,7 +368,7 @@ class ClusteringAlgo(QgsProcessingAlgorithm):
 class DataStats():
     
     def __init__(self, layer):
-# collect stats
+        # collect stats
         self.total_equipments = 0
         self.total_excellent_mr_cap = 0
         self.total_verygood_mr_cap = 0
@@ -605,7 +605,7 @@ class Cluster():
             pass
         else:
             min_distance = cluster_info[cluster]['xmin']
-            max_distance = cluster_info[cluster]['xmin']+100
+            max_distance = cluster_info[cluster]['xmax']
             max_reward = -99
             delta = -99
             for index,value in enumerate(points[cluster]):
