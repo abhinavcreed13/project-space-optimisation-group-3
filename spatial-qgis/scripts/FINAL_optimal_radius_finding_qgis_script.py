@@ -106,7 +106,7 @@ class ClusteringAlgo(QgsProcessingAlgorithm):
         Returns the name of the group this algorithm belongs to. This string
         should be localised.
         """
-        return self.tr('ML')
+        return self.tr('Scripts')
 
     def groupId(self):
         """
@@ -116,7 +116,7 @@ class ClusteringAlgo(QgsProcessingAlgorithm):
         contain lowercase alphanumeric characters only and no spaces or other
         formatting characters.
         """
-        return 'ML'
+        return 'Scripts'
 
     def shortHelpString(self):
         """
@@ -612,6 +612,7 @@ class Cluster():
                 if data[value,0] <= max_distance and data[value,1] > max_reward:
                     max_reward = data[value,1]
                     delta = data[value,0] - min_distance
-            self.feedback.pushInfo('Value of delta is : {d}'.format(d = str(np.round(delta,2))))                 
-            self.feedback.pushInfo('Range for optimum building is : {min1} to {max1} meters with avegrage reward {re}.'.format(
+            self.feedback.pushInfo('Range for optimum building is : {min1} to {max1} meters with average reward {re}'.format(
                 min1=str(cluster_info[cluster]['xmin']), max1 = str(cluster_info[cluster]['xmax']), re = str(np.round(cluster_info[cluster]['avg'],2)) ))
+            self.feedback.pushInfo('Value of delta is : {d}'.format(d = str(np.round(delta,2))))                 
+            
