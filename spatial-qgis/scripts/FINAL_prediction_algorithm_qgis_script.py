@@ -64,6 +64,7 @@ class PredictionAlgorithm(QgsProcessingAlgorithm):
     SEARCH_KEY = "search_key"
     CURRENT_BUILDING = "current_building"
     RADIUS = "radius"
+    DELTA = "delta"
     OBJECTIVE = "objective"
 
     K = "K"
@@ -175,6 +176,14 @@ class PredictionAlgorithm(QgsProcessingAlgorithm):
 
         self.addParameter(
             QgsProcessingParameterString(
+                self.DELTA,
+                'How much are you willing to relax your budget?',
+                defaultValue="0"
+            )
+        )
+
+        self.addParameter(
+            QgsProcessingParameterString(
                 self.K,
                 'How many buildings to select?',
                 defaultValue="5"
@@ -280,6 +289,12 @@ class PredictionAlgorithm(QgsProcessingAlgorithm):
             context
         )
 
+        delta = self.parameterAsString(
+            parameters,
+            self.DELTA,
+            context
+        )
+
         objective = self.parameterAsEnum(
             parameters,
             self.OBJECTIVE,
@@ -359,6 +374,7 @@ class PredictionAlgorithm(QgsProcessingAlgorithm):
                         int(current_building), 
                         int(radius), 
                         int(objective),
+                        delta = int(delta),
                         k = int(k),
                         factors = factors, stats = stats)
         
@@ -483,7 +499,8 @@ class PredictionAlgorithmLogic():
                                     objective, 
                                     k=3, 
                                     factors = {}, 
-                                    stats = None):
+                                    stats = None,
+                                    delta=0):
         
         layer = self.layer
         search_key = self.search_key
@@ -671,7 +688,7 @@ class PredictionAlgorithmLogic():
             return node2.geometry().distance(node1.geometry())
         
         def get_delta():
-            return randint(1,99)
+            return delta
         
         # <reward, cost, node>
         budget_nodes_queue = PriorityQueue()
