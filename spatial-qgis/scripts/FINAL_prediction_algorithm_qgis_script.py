@@ -64,7 +64,9 @@ class PredictionAlgorithm(QgsProcessingAlgorithm):
     SEARCH_KEY = "search_key"
     CURRENT_BUILDING = "current_building"
     RADIUS = "radius"
+    DELTA = "delta"
     OBJECTIVE = "objective"
+    BUILDING_NAME_KEY = "building_name_key"
 
     K = "K"
     WITH_EQUIPMENTS = "WITH_EQUIPMENTS"
@@ -159,6 +161,14 @@ class PredictionAlgorithm(QgsProcessingAlgorithm):
 
         self.addParameter(
             QgsProcessingParameterString(
+                self.BUILDING_NAME_KEY,
+                'Enter building name column name',
+                defaultValue="NAME"
+            )
+        )
+
+        self.addParameter(
+            QgsProcessingParameterString(
                 self.CURRENT_BUILDING,
                 'Enter building code from where you want predictions',
                 defaultValue="104"
@@ -170,6 +180,14 @@ class PredictionAlgorithm(QgsProcessingAlgorithm):
                 self.RADIUS,
                 'Enter preferred radius in meters',
                 defaultValue="200"
+            )
+        )
+
+        self.addParameter(
+            QgsProcessingParameterString(
+                self.DELTA,
+                'How much are you willing to relax your budget?',
+                defaultValue="0"
             )
         )
 
@@ -261,6 +279,12 @@ class PredictionAlgorithm(QgsProcessingAlgorithm):
             self.SEARCH_KEY,
             context
         )
+        
+        building_name_key = self.parameterAsString(
+            parameters,
+            self.BUILDING_NAME_KEY,
+            context
+        )
 
         current_building = self.parameterAsString(
             parameters,
@@ -277,6 +301,12 @@ class PredictionAlgorithm(QgsProcessingAlgorithm):
         radius = self.parameterAsString(
             parameters,
             self.RADIUS,
+            context
+        )
+
+        delta = self.parameterAsString(
+            parameters,
+            self.DELTA,
             context
         )
 
@@ -359,6 +389,7 @@ class PredictionAlgorithm(QgsProcessingAlgorithm):
                         int(current_building), 
                         int(radius), 
                         int(objective),
+                        delta = int(delta),
                         k = int(k),
                         factors = factors, stats = stats)
         
@@ -377,7 +408,7 @@ class PredictionAlgorithm(QgsProcessingAlgorithm):
             #feedback.pushInfo(str(building))
             reward, cost, node = node_tuple
             feedback.pushInfo('#{0} - {2}, {1}, cost={3:.2f}, reward={4:.7f}'.format(idx+1, 
-                                node['NAME'], node['BUILD_NO'], cost, reward))
+                                node[building_name_key], node[search_key], cost, reward))
             selected_fids.append(node.id())
             
         layer.select(selected_fids)
@@ -483,7 +514,8 @@ class PredictionAlgorithmLogic():
                                     objective, 
                                     k=3, 
                                     factors = {}, 
-                                    stats = None):
+                                    stats = None,
+                                    delta=0):
         
         layer = self.layer
         search_key = self.search_key
@@ -671,7 +703,7 @@ class PredictionAlgorithmLogic():
             return node2.geometry().distance(node1.geometry())
         
         def get_delta():
-            return randint(1,99)
+            return delta
         
         # <reward, cost, node>
         budget_nodes_queue = PriorityQueue()
