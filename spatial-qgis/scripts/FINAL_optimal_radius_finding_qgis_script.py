@@ -92,14 +92,14 @@ class ClusteringAlgo(QgsProcessingAlgorithm):
         lowercase alphanumeric characters only and no spaces or other
         formatting characters.
         """
-        return 'clusteringScript'
+        return 'FindingOptimalRadiusScript'
 
     def displayName(self):
         """
         Returns the translated algorithm name, which should be used for any
         user-visible display of the algorithm name.
         """
-        return self.tr("Finding optimal radius script")
+        return self.tr("Finding Optimal Radius script")
 
     def group(self):
         """
@@ -338,7 +338,7 @@ class ClusteringAlgo(QgsProcessingAlgorithm):
         for feature in layer.getFeatures():
             if str(feature[search_key]) == str(current_building):
                 feedback.pushInfo("-----" + '\n')
-                feedback.pushInfo('Starting Building: ' +feature["NAME"] + '\n')
+                # feedback.pushInfo('Starting Building: ' +feature["NAME"] + '\n')
                 startingFeature = feature
                 break
         graph = []
@@ -368,7 +368,7 @@ class ClusteringAlgo(QgsProcessingAlgorithm):
 class DataStats():
     
     def __init__(self, layer):
-# collect stats
+        # collect stats
         self.total_equipments = 0
         self.total_excellent_mr_cap = 0
         self.total_verygood_mr_cap = 0
@@ -568,8 +568,10 @@ class Cluster():
             for cluster in clusters:
                 row_ix = where(yhat == cluster)
                 plt.scatter(X[row_ix, 0], X[row_ix, 1])
+            plt.legend(clusters)
+            plt.ylabel('Rewards')
+            plt.xlabel('Cost')
             plt.title('K MEANS')
-            self.feedback.pushInfo(plot_path+"plot.png")
             if path.exists(plot_path+"plot.png"):
                 os.remove(plot_path+"plot.png")
             plt.savefig(plot_path+'plot.png')
@@ -585,6 +587,7 @@ class Cluster():
             for index,value in enumerate(points[key]):
                 x.append(data[value,0])
                 y.append(data[value,1])
+        
             cluster_info[key] = {
                 'ymin':np.round(min(y),4),
                 'ymax':np.round(max(y),4),
@@ -592,15 +595,24 @@ class Cluster():
                 'xmax':np.round(max(x),4),
                 'avg' :np.average(y)
             }
-        avg = -9999
+        avg = -99
         cluster = 9999
         for index,key in enumerate(cluster_info):
             if cluster_info[key]['avg'] > avg:
-              avg = cluster_info[key]['avg']
-              cluster = key
+                avg = cluster_info[key]['avg']
+                cluster = key
         if (cluster == 9999):
             pass
         else:
-            self.feedback.pushInfo('Range for optimum building is : {min1} to {max1} meters with average reward {re}.'.format(
-            min1=str(cluster_info[cluster]['xmin']), max1 = str(cluster_info[cluster]['xmax']), re = str(np.round(cluster_info[cluster]['avg'],2)) ))
-            self.feedback.pushInfo("-----" + '\n')
+            min_distance = cluster_info[cluster]['xmin']
+            max_distance = cluster_info[cluster]['xmax']
+            max_reward = -99
+            delta = -99
+            for index,value in enumerate(points[cluster]):
+                if data[value,0] <= max_distance and data[value,1] > max_reward:
+                    max_reward = data[value,1]
+                    delta = data[value,0] - min_distance
+            self.feedback.pushInfo('Range for optimum building is : {min1} to {max1} meters with average reward {re}'.format(
+                min1=str(cluster_info[cluster]['xmin']), max1 = str(cluster_info[cluster]['xmax']), re = str(np.round(cluster_info[cluster]['avg'],2)) ))
+            self.feedback.pushInfo('Value of delta is : {d}'.format(d = str(np.round(delta,2))))                 
+            
