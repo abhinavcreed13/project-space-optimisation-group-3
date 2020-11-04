@@ -1,0 +1,145 @@
+\documentclass[a4paper, 11pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath}
+\usepackage{lmodern}
+\usepackage[T1]{fontenc}
+\usepackage{textcomp}
+\usepackage{comment}
+\usepackage{fullpage} % changes the margin
+\usepackage{graphicx}
+\usepackage{import}
+\usepackage{float}
+\linespread{1.5}
+\usepackage[english]{babel}
+\usepackage[backend=biber,sorting=none]{biblatex}
+\usepackage{titlesec}
+\usepackage{hyperref}
+\usepackage{csquotes}
+\usepackage{lipsum}
+\usepackage{graphicx}
+\usepackage{caption,subcaption}
+\usepackage{amssymb}
+\usepackage[dvipsnames]{xcolor}
+\usepackage[ruled,vlined,algo2e]{algorithm2e}
+\usepackage{setspace}
+\usepackage{nicefrac}
+\usepackage{algorithm,algorithmic}
+\usepackage{pdfpages} 
+%\usepackage{algorithm,algorithmic}
+% \usepackage[
+% backend=biber,
+% style=alphabetic,
+% sorting=ynt
+% ]{biblatex}
+\usepackage{xspace} 
+
+\newcommand{\R}{\mathbb{R}}
+\DeclareMathOperator*{\argmax}{arg\,max}
+\DeclareMathOperator*{\argmin}{arg\,min}
+
+
+\usepackage{geometry}
+ \geometry{
+ a4paper,
+ left=20mm,
+ top=20mm,
+ bottom=20mm,
+ right=20mm
+ }
+
+% setting paragraph style
+\makeatletter
+\renewcommand\paragraph{\@startsection{paragraph}{4}{\z@}%
+                        {-3.25ex\@plus -1ex \@minus -.2ex}%
+                        {0.0001pt \@plus .2ex}%
+                        {\normalfont\normalsize\bfseries}}
+\renewcommand\subparagraph{\@startsection{subparagraph}{5}{\z@}%
+                        {-3.25ex\@plus -1ex \@minus -.2ex}%
+                        {0.0001pt \@plus .2ex}%
+                        {\normalfont\normalsize\bfseries}}
+%\renewcommand\thesection{\arabic{section}}
+%\renewcommand\thesubsubsection{\thesubsection.\alph{subsubsection}}  
+% \renewcommand\thesubsubsection{\alph{subsubsection}}
+% \renewcommand\thesubparagraph{}
+
+\makeatother
+% setting depth counter
+\setcounter{secnumdepth}{7}
+\setcounter{tocdepth}{7}
+
+\graphicspath{{resources/images/}}
+\addbibresource{references.bib}
+
+\begin{document}
+
+\setlength{\abovedisplayskip}{3pt}
+\setlength{\belowdisplayskip}{3pt}
+
+%TC:ignore
+\import{layout/}{title.tex}
+\pagebreak
+
+\import{layout/}{abstract.tex}
+
+\import{layout/}{declaration.tex}
+
+\import{layout/}{acknowledgements.tex}
+
+\thispagestyle{empty}
+\setcounter{tocdepth}{3}
+\tableofcontents{}
+\pagebreak
+
+\setcounter{page}{1}
+%TC:endignore
+
+\section{Introduction}
+
+\import{content/}{introduction.tex}
+
+\section{Related Work}
+
+\import{content/}{relatedwork.tex}
+
+\section{Problem Description}
+
+\import{content/problem_description/}{problem_description.tex}
+
+\section{Data Analysis}
+
+\import{content/data_analysis/}{data_analysis.tex}
+
+\section{Proposed Methodologies} \label{methodologies}
+
+\import{content/proposed_methodologies/}{algorithm.tex}
+
+\import{content/proposed_methodologies/}{hyperparameter_tuning.tex}
+
+
+\section{Results}
+
+\import{content/results/}{buildings.tex}
+
+\import{content/results/}{floors.tex}
+
+\import{content/results/}{comparison_algorithms.tex}
+
+\section{Algorithm Analysis}
+
+\import{content/}{algorithm_analysis.tex}
+
+\section{Conclusion \& Achievements}
+
+\import{content/}{conclusion.tex}
+
+\clearpage
+
+%TC:ignore
+\section{Appendix}
+
+\import{content/}{appendix.tex}
+
+\printbibliography
+%TC:endignore
+
+\end{document}

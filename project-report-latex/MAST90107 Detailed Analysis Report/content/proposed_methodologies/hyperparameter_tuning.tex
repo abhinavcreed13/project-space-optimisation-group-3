@@ -1,0 +1,67 @@
+\subsection{Hyper-parameters Tuning and Clustering Algorithms}
+In this section, few clustering algorithms are discussed and how the hyper-parameters for calculating the optimum budget and delta constraints are tuned/calculated.
+\subsubsection{Clustering Algorithms }\label{clust}
+\begin{enumerate}
+    \item \textbf{Agglomerative Hierarchical Clustering} - In this algorithm, the data points are clustered according to the similarity using an underlying hierarchical algorithm. This clustering technique works in a \texttt{bottom-up} approach, where each cluster begins as a single independent cluster. It can be implemented using three linkage strategies viz, \texttt{single linkage strategy, complete linkage strategy, average linkage strategy}. \cite{abks11}
+    Mathematically it is given as,
+    
+    A \texttt{d}-dimensional circle of radius \texttt{r} and center \texttt{y},
+    \begin{equation*}
+        B_r^d(y) :=  \{x \mid ||x-y||  \leq r \}
+    \end{equation*}
+    and the distance is calculated using Euclidean distance.
+    Here,
+    % \textit{$k  \in N$}
+    % ,\textit{$set X \subset \R^d$} with \textit{$k \leq|X|$} and
+    \textit{$C_k = \{C_1,C_2..,C_k\}$} is the collection of \textit{k} clusters, diameters be \textit{$C \subset \R^d$} and the collection \textit{C} contains at most one cluster \textit{$1 \leq k \leq |X|$}.
+    
+    \item \textbf{BIRCH (balanced iterative reducing and clustering using hierarchies)} - This algorithm performs hierarchical clustering, and it is very fast as compared to other algorithms and also can be parallelized. In this method, it uses closeness of the data points to assign it to the clusters locally rather than scanning either a single cluster or all clusters for the data points globally. It treats dense clusters as a single entity, and sparse clusters are treated as outliers and removed optionally. Given as
+    \texttt{N} dimensional data in \texttt{$\overrightarrow{X_i}$} where \texttt{i = 1,..,N},
+    \texttt{$\overrightarrow{X_0}$} as the centroid, \texttt{R} as radius and \texttt{D} as diameter\cite{10.1145/233269.233324}.
+    \begin{equation*}
+      \overrightarrow{X_0} = \sum_{i=1}^N \overrightarrow{X_i}/N 
+ \end{equation*}
+ \begin{equation*}
+      R = (\sum_{i=1}^N (\overrightarrow{X_i} - \overrightarrow{X_0})^2 /N)^\nicefrac{1}{2}
+ \end{equation*}
+  \begin{equation*}
+      D = (\sum_{i=1}^N \sum_{j=1}^N (\overrightarrow{X_i} - \overrightarrow{X_j})^2 /N(N-1))^\nicefrac{1}{2}
+  \end{equation*}
+       
+       
+    \item \textbf{Mini Batch K-Means} - This algorithm is an extension to \texttt{K-Means}. This algorithm divides the data into small random batches. The following samples are then randomly selected, clusters are then updated until they converge. While computing the clusters it minimizes the objective function. The mathematics behind the algorithm is very similar to K-Means except it subjects the data into random batches and is computationally faster.\cite{article}
+    \begin{equation*}
+        SSE = \sum_{i=1}^K\sum_{j \in C_m} dis(c_i,j)^2
+    \end{equation*}
+    Here, \texttt{k} represents cluster centers, \texttt{$c_i$} represents \texttt{i} centers, \texttt{j} represents sample points and \texttt{dis} is the Euclidean distance.
+    \item \textbf{K-Means} - This is one most popular algorithms used in unsupervised learning. This algorithm tries to satisfy a criterion by optimizing the division of data into \texttt{K} clusters. The initial step includes choosing the data to plot the focal points, then remaining data points are used to get the initial classification based on the criterion of minimizing the sum of squared distance between the points and the centroids i.e minimizing the Euclidean distance. Since it depends on choosing the initial points and sample data to form clusters it always changes with respect to the mentioned factor. It tries to find the local minima \cite{5453745} \cite{article1}. Given as
+    \begin{equation*}
+       {\displaystyle {\underset {\mathbf {S} }{\operatorname {arg\,min} }}\sum _{i=1}^{k}\sum _{\mathbf {x} \in S_{i}}\left\|\mathbf {x} \textbf{-}{\boldsymbol {\mu }}_{i}\right\|^{2}} 
+    \end{equation*}
+    where \texttt{x} is the set of observations, \texttt{$\mu_i$} is the mean of the cluster \texttt{$S_i$}.
+    
+    \item \textbf{GMM(Gaussian Mixture Models)} - This approach is also similar to \texttt{K-Means} and in fact, this algorithm is used when K-Means fails to identify the data points in the overlapping clusters. Clusters are defined using mean, weight, and co-variance. Its parameters are trained using \texttt{Expectation - Maximization}. Instead of assigning the nearest cluster to the data points, Gaussian parameters for each cluster are calculated, and then based on these probabilities data points are assigned to the clusters \cite{Sridharan2014GaussianMM}. Mathematically it is given as,
+    \begin{equation*}
+      p(X) = \sum _{k=1}^{K} \pi_k\mathcal{N}(x|\mu_k,\Sigma_k)  
+    \end{equation*}
+    Here, \texttt{$\mathcal{N}(x|\mu_k,\Sigma_k)$} represents cluster with mean $\mu_k$, co-variance $\Sigma_k$ and weights as $\pi_k$. 
+ 
+    
+\end{enumerate}
+
+
+\subsubsection{Tuning budget constraint(B)}
+In this section, steps to tune budget constraint is discussed. 
+\begin{enumerate}
+    \item Extract \texttt{Reward} and \texttt{Cost} from the function mentioned in Algorithm \ref{Alg1}.
+    \item Identify number of clusters using \texttt{Silhouette} process.
+    \item Fit the data into the clustering algorithm.
+    \item Calculate the average of each cluster.
+    \item Identify and return the cluster having the highest reward and the lower bound of its corresponding range is the Budget constraint.
+\end{enumerate}
+
+\subsubsection{Tuning delta constraint($\delta$)}
+\begin{enumerate}
+    \item Using the cluster from the above section, iterate over all the points to calculate the highest rewarding building in the cluster.
+    \item Subtract the corresponding cost of the identified data point from the lower bound of the cluster, it is called $\delta$ constraint.
+\end{enumerate}

@@ -1,0 +1,213 @@
+ In this section, we will describe our proposed methodology for solving the problem shown in equation \ref{eq_3} and \ref{eq_4}. In addition to this, we will also show how we can optimize hyper-parameters $B$ and $\delta$ of our problem using clustering and grid-searching techniques. 
+
+\subsection{Non-randomized Anytime Orienteering Algorithm}
+
+In this section, we will propose a novel non-randomized anytime orienteering algorithm for finding $k$-optimal goals that maximize reward on a specialized graph with budget constraints. This specialized graph represents a real-world scenario that is analogous to an orienteering problem of finding $k$-most optimal goal states.
+
+\subsubsection{Algorithm Description}
+ We propose a novel way of solving the problem formulation shown in equation \ref{eq_3} and \ref{eq_4} which is inspired by the general randomized algorithm for IPP problems \cite{IPPArora}.
+ 
+ The algorithm starts with a priority queue and creates $r$ subset s.t. $r \subseteq V$ \textbackslash\:$v_s$. Then, for each node in $r$, path cost $C(r)$ and node reward $I(r)$ is calculated. It is then ensured that the budget constraint is satisfied and the selected node is pushed into the priority queue with a negative reward as the priority. We can pop the queue item with minimum priority $k$-times to find the $k$-most optimal goal nodes. This process is described in Algorithm \ref{Alg1}.
+
+\begin{algorithm}
+\SetAlgoLined
+ \textbf{Inputs:} $G_s = (V, E), v_s, B, L, k, \delta$, $o \in O$, $f \subseteq F$ \\
+ \textbf{Output:} $v_g = \{v_{g1},..,v_{gk}\}$ s.t. $v_{g1}>...> v_{gk}$ \\
+ queue := new priority queue \\
+ $v_g = \emptyset$ \\
+ $r := r \subseteq V$ \textbackslash\:$v_s$ \\
+ \For{$v_i\:\:in\:\:r$}{
+   $I(r) = R(v_i,o,f)$        \:\:\:\:\texttt{//node reward} \\
+   $C(r) = C(v_s, v_i)$     \:\:\:\:\texttt{//path cost} \\
+  \If{$C(r)\leq B + \delta \leq L$}{
+        $priority = -1 * I(r)$ \\
+        queue.insert($v_i, priority$)
+    }
+ }
+ \While{not queue.empty()}{
+    $\rho$ := queue.pop-min()  \:\:\:\:\texttt{//best node} \\
+    \If{$len(v_g) < k$}{
+        $v_g:= v_g \cup \rho$
+    }
+ }
+ \caption{Non-Randomized Anytime Orienteering to find k-optimal goals for a specialized graph}
+ \label{Alg1}
+\end{algorithm}
+\vspace{-4mm}
+\subsubsection{Cost Function}
+
+The cost function $C(v_s, v_i)$ plays an important role in our algorithm as it is used to decide whether the budget is achieved or not. Using this function, we calculate the cost of moving from node $v_s$ to the node $v_i$. The idea of this cost function is to be domain-specific, i.e. domain-related situation and the problem can be mapped accordingly with this cost function depending upon the significance of the budget constraint.
+
+In order to simulate the scenario of finding $k$-most optimal nearest building with the provided budget $B$ and $\delta$, we define our cost function as follows.
+\begin{equation}
+    C(v_s, v_i) = \texttt{The distance to travel from building}\:v_s\:\texttt{to building}\:v_i\:\texttt{(in metres)}
+\end{equation}
+Here, the cost function is unconstrained as the distance could be very large.
+
+Similarly, we can easily change our cost function to adapt the scenario of finding $k$-most optimal nearest floors in the building with the provided budget $B$ and $\delta$ as follows.
+\begin{equation}
+    C(v_s, v_i) = \texttt{The number of floors to take from level}\:v_s\:\texttt{to level}\:v_i
+\end{equation}
+Here, the cost function is constrained as the number of floors cannot be large than the provided floors in the building. So, in this scenario, $C(v_s, v_i) \leq Floors(building)$.
+
+\subsubsection{Reward Function}
+
+The Reward function $R(v_i,o,f)$ is the next important component in our algorithm as it is used to decide the reward given by a building or floor $v_i$ based on the provided factors $f \subseteq F$ and objective $o \in O$. Using this function, we can easily simulate different factors on which the reward provided can be controlled based on different objectives. In our case, we implemented this reward function for our problem objectives as described below.
+
+\paragraph{Reward Function Equations for Meeting Rooms Objective}
+
+In this section, we will describe our reward function for the problem objective of booking a meeting room as per the different factors described in section \ref{factor_analysis}. The resulting equations implemented in the reward function can be described as follows.
+
+\begin{itemize}
+    \item \textbf{$f=\phi$}: If there are no factors provided for booking a meeting room, then the reward calculated for node $v_i$ can be stated as:
+    \begin{equation}
+        R(v_i,o,f) = \frac{\texttt{supply of meeting rooms at}\:v_i}{\texttt{demand of meeting rooms at}\:v_i}
+    \end{equation}
+    
+    \item \textbf{$f=\:$\{Book a meeting room with required capacity C\}}: Using the provided capacity $C$, the reward calculated for node $v_i$ can be stated as:
+    \begin{equation}
+        R(v_i,o,f) = \begin{cases}
+          \frac{\texttt{supply of meeting rooms at}\:v_i}{\texttt{demand of meeting rooms at}\:v_i} & \text{s.t.}\:supply >= C\\    
+          0 & \text{otherwise}
+        \end{cases}
+    \end{equation}
+    
+    \item \textbf{$f=\:$\{Book a meeting room in COVID-19 lockdown situation\}}: We can also map COVID-19 lockdown scenario using the flexible factors set space by which rewards can be manipulated. Depending upon the different situations of the lockdown, we can calculate reward for node $v_i$ as follows:
+    \begin{gather}
+        R(v_i,o,f) =
+        \begin{cases}\texttt{supply of meeting rooms at}\:v_i & f=\texttt{\{Strict\}} \\
+         \frac{\texttt{supply of meeting rooms at}\:v_i}{\texttt{demand of meeting rooms at}\:v_i\:\times\:0.25} & f=\texttt{\{Medium\}}\\
+         \frac{\texttt{supply of meeting rooms at}\:v_i}{\texttt{demand of meeting rooms at}\:v_i\:\times\:0.50} & f=\texttt{\{Low\}}
+        \end{cases}
+    \end{gather}
+    
+    \item \textbf{$f=\:$\{Book a meeting room with high capacity\}}: We deduced the factor of high capacity by considering the proportion of average room size with respect to the provided supply and demand of meeting rooms. This can be used to calculate a reward for node $v_i$ as follows:
+    \begin{equation}
+    R(v_i,o,f) = \frac{\texttt{supply of meeting rooms at}\:v_i}{\texttt{demand of meeting rooms at}\:v_i} \times \frac{\texttt{average room size at}\:v_i}{\texttt{total average room size}}
+     \end{equation}
+     
+     \item \textbf{$f=\:$\{Book a meeting room with easy availability\}}: In order to deduce easy availability of the meeting rooms, we used the provided meeting rooms usage data by which we were able to get the proportion of meeting rooms being held at a particular node of the graph. This can be used to calculate the reward for the node $v_i$ as follows:
+     \begin{equation}
+         R(v_i,o,f) = \frac{\texttt{supply of meeting rooms at}\:v_i}{\texttt{demand of meeting rooms at}\:v_i} \times \left(1-\frac{\texttt{total meetings held at}\:v_i}{\texttt{overall meetings}}\right)
+     \end{equation}
+     
+     \item \textbf{$f=\:$\{Book a meeting room with equipment\}}: In order to deduce the meeting rooms with equipment, we used the provided \texttt{av-equipment} data that helped us to figure out the distribution of equipment across the graph. This data can be used to calculate the reward for the node $v_i$ as follows:
+     \begin{equation}
+         R(v_i,o,f) = \frac{\texttt{supply of meeting rooms at}\:v_i}{\texttt{demand of meeting rooms at}\:v_i} \times \frac{\texttt{equipment count at}\:v_i}{\texttt{total equipment count}}
+     \end{equation}
+     
+     \item \textbf{$f=\:$\{Book a meeting room with different room conditions\}}: We were provided with the room conditions in the space data, which can be used to deduce the preference of booking a meeting room with different room conditions. This can be used to calculate the reward for the provided node $v_i$ as follows:
+     \begin{gather}
+         R(v_i,o,f) = \begin{cases}\frac{\texttt{supply of meeting rooms at}\:v_i}{\texttt{demand of meeting rooms at}\:v_i} \times \frac{\texttt{excellent rooms at}\:v_i}{\texttt{overall excellent rooms}} & f=\{\texttt{Excellent}\} \\
+         \frac{\texttt{supply of meeting rooms at}\:v_i}{\texttt{demand of meeting rooms at}\:v_i} \times \frac{\texttt{very good rooms at}\:v_i}{\texttt{overall very good rooms}} & f=\{\texttt{Very Good}\} \\
+        \frac{\texttt{supply of meeting rooms at}\:v_i}{\texttt{demand of meeting rooms at}\:v_i} \times \frac{\texttt{good rooms at}\:v_i}{\texttt{overall good rooms}} & f=\{\texttt{Good}\}
+        \end{cases}
+     \end{gather}
+\end{itemize}
+
+\paragraph{Reward Function Equations for Toilet Facilities Objective}
+
+In this section, we will describe our reward function for the problem objective of using a toilet facility in order to get a deeper understanding of the supply and demand situation as per the different factors described in the section \ref{factor_analysis}. The resulting equations implemented in the reward function for the toilet objective can be described as follows.
+\begin{itemize}
+    \item \textbf{$f=\phi$}: If there are no factors provided for using a toilet facility, then the reward calculated for node $v_i$ can be stated as:
+    \begin{equation}
+        R(v_i,o,f) = \frac{\texttt{supply of toilet facilities at}\:v_i}{\texttt{demand of toilet facilities at}\:v_i}
+    \end{equation}
+    
+    \item \textbf{$f=\:$\{Search a toilet facility with required capacity C\}}: Using the provided capacity $C$, the reward calculated for node $v_i$ can be stated as:
+    \begin{equation}
+        R(v_i,o,f) = \begin{cases}
+          \frac{\texttt{supply of toilet facilities at}\:v_i}{\texttt{demand of toilet facilities at}\:v_i} & \text{s.t.}\:supply >= C\\    
+          0 & \text{otherwise}
+        \end{cases}
+    \end{equation}
+    
+    \item \textbf{$f=\:$\{Search a toilet facility in COVID-19 lockdown situation\}}: We can also map COVID-19 lockdown scenario using the flexible factors set space by which rewards can be manipulated. Depending upon the different situations of the lockdown, we can calculate reward for node $v_i$ as follows:
+    \begin{gather}
+        R(v_i,o,f) =
+        \begin{cases}\texttt{supply of toilet facilities at}\:v_i & f=\texttt{\{Strict\}} \\
+         \frac{\texttt{supply of toilet facilities at}\:v_i}{\texttt{demand of toilet facilities at}\:v_i\:\times\:0.25} & f=\texttt{\{Medium\}}\\
+         \frac{\texttt{supply of toilet facilities at}\:v_i}{\texttt{demand of toilet facilities at}\:v_i\:\times\:0.50} & f=\texttt{\{Low\}}
+        \end{cases}
+    \end{gather}
+    
+    \item \textbf{$f=\:$\{Search a toilet facility with high capacity\}}: We deduced the factor of high capacity by considering the proportion of average room size with respect to the provided supply and demand of toilet facilities. This can be used to calculate a reward for node $v_i$ as follows:
+    \begin{equation}
+    R(v_i,o,f) = \frac{\texttt{supply of toilet facilities at}\:v_i}{\texttt{demand of toilet facilities at}\:v_i} \times \frac{\texttt{average room size at}\:v_i}{\texttt{total average room size}}
+     \end{equation}
+     
+     \item \textbf{$f=\:$\{Search a toilet facility with easy availability\}}: In order to deduce easy availability of the toilet facility, we used the provided timetable data to figure out the corresponding class duration at the target nodes. If the average class duration is high, then it can be considered a low availability situation. This can be used to calculate the reward for the node $v_i$ as follows:
+     \begin{equation}
+         R(v_i,o,f) = \frac{\texttt{supply of toilet facilities at}\:v_i}{\texttt{demand of toilet facilities at}\:v_i} \times \left(1-\frac{\texttt{average class duration at}\:v_i}{\texttt{overall class duration}}\right)
+     \end{equation}
+     
+     \item \textbf{$f=\:$\{Search a toilet facility with different room conditions\}}: We were provided with the room conditions in the space data, which can be used to deduce the preference of using a toilet facility with different room conditions. This can be used to calculate the reward for the provided node $v_i$ as follows:
+     \begin{gather}
+         R(v_i,o,f) = \begin{cases}\frac{\texttt{supply of toilet facilities at}\:v_i}{\texttt{demand of toilet facilities at}\:v_i} \times \frac{\texttt{excellent rooms at}\:v_i}{\texttt{overall excellent rooms}} & f=\{\texttt{Excellent}\} \\
+         \frac{\texttt{supply of toilet facilities at}\:v_i}{\texttt{demand of toilet facilities at}\:v_i} \times \frac{\texttt{very good rooms at}\:v_i}{\texttt{overall very good rooms}} & f=\{\texttt{Very Good}\} \\
+        \frac{\texttt{supply of toilet facilities at}\:v_i}{\texttt{demand of toilet facilities at}\:v_i} \times \frac{\texttt{good rooms at}\:v_i}{\texttt{overall good rooms}} & f=\{\texttt{Good}\}
+        \end{cases}
+     \end{gather}
+    
+\end{itemize}
+
+
+\subsubsection{Time Complexity}
+If we assume a standard binary heap implementation of the priority queue, then the insertion and deletion time complexity is $O(\:log\:n)$, where $n$ is the size of the input \cite{heap1}. This can be further optimized by several customizations \cite{heap2}. Hence, the time complexity of our proposed algorithm for the best and the worst case can be stated as
+\begin{equation}
+    O(n-1\:*\:log\:n) + O(k\:*\:log\:n) \leq O(n\: log\:n)
+\end{equation}
+
+\subsubsection{Space Complexity}
+If we again assume a heap data structure implementation of the priority queue, then the space complexity of storing $n$ elements in the priority queue is $O(n)$\cite{heap1}. Hence, the best and worst-case space complexity of our proposed algorithm is $O(n)$.
+
+% \subsubsection{Solving example formulation using the algorithm} \label{solution}
+% In this section, we will solve the example problem formulation as described in the section \ref{example_1} and \ref{example_2}. First, we will try to solve the example problem shown with the cost-reward Table \ref{tab:cost_reward_1}. We need to find the set of goal building $v_g$ s.t. $v_g \in V_c$ and satisfies below hard constraint.
+% \begin{equation*}
+%     \argmax_{r \subseteq V_c}I(r) \:\textit{subject to}\:C(r) \leq B=200
+% \end{equation*}
+% Using our proposed non-randomized anytime orienteering algorithm, we can easily find 3 most optimal building using the described cost-reward Table \ref{tab:cost_reward_1} as shown below.
+% \begin{gather*}
+%     v_g = \text{\{} v_{g1}, v_{g2}, v_{g3} \text{\}} \:where\:v_{g1} > v_{g2} > v_{g3} \\ 
+%     v_{g1} = 260\:with\:C(260) = 77.69, I(r) = 0.0017452 \\
+%     v_{g2} = 204\:with\:C(260) = 70.52, I(r) = 0.0005841 \\
+%     v_{g3} = 260\:with\:C(260) = 196, I(r) = 0.0002811
+% \end{gather*}
+% Similarly, we can also find the set of goal building $v_g*$ s.t. $v_g* \in V_c$ that satisfies below soft constraint.
+% \begin{gather*}
+%      \argmax_{r \subseteq V_c}I(r) \:\textit{subject to}\: C(r) \leq B+\delta = 200+50 = 250
+% \end{gather*}
+% where $\delta = 50 \in \R_0^+ \cup \{\infty\}$. Using our proposed non-randomized anytime orienteering algorithm, we can again easily find 3 most optimal building using the described cost-reward Table \ref{tab:cost_reward_1} for the above soft-constraint problem as shown below.
+% \begin{gather*}
+%     v_g* = \text{\{} v_{g1}*, v_{g2}*, v_{g3}* \text{\}} \:where,\\ v_{g1}* > v_{g2}* > v_{g3}* \\
+%     v_{g1}* = 102\:with\:C(102) = 246, I(r) = 0.001854 \\
+%     v_{g2}* = 260\:with\:C(260) = 77.69, I(r) = 0.0017452 \\
+%     v_{g3}* = 204\:with\:C(260) = 70.52, I(r) = 0.0005841 
+% \end{gather*}
+% Moreover, we can easily use this algorithm to solve the problem described in section \ref{example_2}. Here, we will try to solve the example problem shown with the cost-reward Table \ref{tab:cost_reward_2}. We need to find the set of goal floors $v_g$ s.t. $v_g \in V_c$ that satisfies below hard constraint.
+% \begin{equation*}
+%     \argmax_{r \subseteq V_c}I(r) \:\textit{subject to}\:C(r) \leq B=4 \leq Floors(b)
+% \end{equation*}
+% Using our proposed non-randomized anytime orienteering algorithm, we can easily find 3 most optimal floors in the provided building using the described cost-reward Table \ref{tab:cost_reward_2} for above hard-constraint problem as shown below.
+% \begin{gather*}
+%     v_g = \text{\{} v_{g1}, v_{g2}, v_{g3} \text{\}} \:where\:v_{g1} > v_{g2} > v_{g3} \\ 
+%     v_{g1} = \textit{\{Basement 2\}}\:with\:C = 1, I(r) = 0.823569 \\
+%      v_{g2} = \textit{\{Level 3\}}\:with\:C = 1, I(r) = 0.00345 \\
+%       v_{g3} = \textit{\{Level 4\}}\:with\:C = 2, I(r) = 0.00245
+% \end{gather*}
+
+% Similarly, we need to find the set of goal floors $v_g*$ s.t. $v_g* \in V_c$ that satisfies below soft constraint.
+% \begin{equation*}
+%      \argmax_{r \subseteq V_c}I(r) \:\textit{subject to}\: C(r) \leq B+\delta = 4+2 = 6 \leq Floors(b) = L
+% \end{equation*}
+% where $\delta = 2 \in \R_0^+ \cup \{\infty\} \leq L-B$. Using our proposed non-randomized anytime orienteering algorithm, we can easily find 3 most optimal floors in the provided building using the described cost-reward Table \ref{tab:cost_reward_2} for above soft-constraint problem as shown below.
+% \begin{gather*}
+%     v_g* = \text{\{} v_{g1}*, v_{g2}*, v_{g3}* \text{\}} \:where\:v_{g1}* > v_{g2}* > v_{g3}* \\
+%     v_{g1}* = \textit{\{Basement 2\}}\:with\:C = 1, I(r) = 0.823569 \\
+%     v_{g2}* = \textit{\{Level 8\}}\:with\:C = 6, I(r) = 0.56788 \\
+%      v_{g3}* = \textit{\{Level 3\}}\:with\:C = 1, I(r) = 0.00345
+% \end{gather*}
+
+% From the above results, we can say that the hard-constraint problem is very restrictive as it will miss out on a better rewarding node which is very close to the budget $B$. For example, we can see that building 102 never came as the answer to the problem \ref{example_1} as the budget was $200$ and the cost of reaching building 102 is $246$. But, the reward provided by building 102 is higher than all other nearby buildings within the required budget. Hence, the key takeaway from this example formulation is the practical utility of $\delta$ that helps in relaxing the hard-constraint so that rewarding nodes that are closer to the budget will not be missed as the optimal solutions.
+
+% \subsubsection{Limitations}
