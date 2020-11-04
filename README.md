@@ -53,5 +53,9 @@ Canva: https://www.canva.com/design/DAD8lTyu9o8/share/preview?token=d7IScot8lTEj
 Overleaf: https://www.overleaf.com/9639764725mnfkcckzbdyv
 
 
+## MAST90106 - Project Part-2
 
+### Latex Report
+
+Overleaf: https://www.overleaf.com/read/gbcyxhkpmdbj
 
