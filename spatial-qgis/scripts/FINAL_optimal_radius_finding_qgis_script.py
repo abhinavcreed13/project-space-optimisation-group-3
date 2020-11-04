@@ -338,7 +338,7 @@ class ClusteringAlgo(QgsProcessingAlgorithm):
         for feature in layer.getFeatures():
             if str(feature[search_key]) == str(current_building):
                 feedback.pushInfo("-----" + '\n')
-                feedback.pushInfo('Starting Building: ' +feature["NAME"] + '\n')
+                # feedback.pushInfo('Starting Building: ' +feature["NAME"] + '\n')
                 startingFeature = feature
                 break
         graph = []

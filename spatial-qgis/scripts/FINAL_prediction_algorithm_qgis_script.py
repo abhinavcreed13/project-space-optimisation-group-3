@@ -66,6 +66,7 @@ class PredictionAlgorithm(QgsProcessingAlgorithm):
     RADIUS = "radius"
     DELTA = "delta"
     OBJECTIVE = "objective"
+    BUILDING_NAME_KEY = "building_name_key"
 
     K = "K"
     WITH_EQUIPMENTS = "WITH_EQUIPMENTS"
@@ -155,6 +156,14 @@ class PredictionAlgorithm(QgsProcessingAlgorithm):
                 self.SEARCH_KEY,
                 'Enter building code column name',
                 defaultValue="BUILD_NO"
+            )
+        )
+
+        self.addParameter(
+            QgsProcessingParameterString(
+                self.BUILDING_NAME_KEY,
+                'Enter building name column name',
+                defaultValue="NAME"
             )
         )
 
@@ -268,6 +277,12 @@ class PredictionAlgorithm(QgsProcessingAlgorithm):
         search_key = self.parameterAsString(
             parameters,
             self.SEARCH_KEY,
+            context
+        )
+        
+        building_name_key = self.parameterAsString(
+            parameters,
+            self.BUILDING_NAME_KEY,
             context
         )
 
@@ -393,7 +408,7 @@ class PredictionAlgorithm(QgsProcessingAlgorithm):
             #feedback.pushInfo(str(building))
             reward, cost, node = node_tuple
             feedback.pushInfo('#{0} - {2}, {1}, cost={3:.2f}, reward={4:.7f}'.format(idx+1, 
-                                node['NAME'], node['BUILD_NO'], cost, reward))
+                                node[building_name_key], node[search_key], cost, reward))
             selected_fids.append(node.id())
             
         layer.select(selected_fids)
