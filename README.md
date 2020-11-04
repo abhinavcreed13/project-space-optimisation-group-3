@@ -53,7 +53,15 @@ Canva: https://www.canva.com/design/DAD8lTyu9o8/share/preview?token=d7IScot8lTEj
 Overleaf: https://www.overleaf.com/9639764725mnfkcckzbdyv
 
 
-## MAST90106 - Project Part-2
+## MAST90107 - Project Part-2
+
+### Data Science Presentation
+
+Google Slides: https://docs.google.com/presentation/d/1Q3FpLjMfikD1k5WCoDcxMdLTpSO1JKiYxyvMuFSJ_iE/edit?usp=sharing
+
+### Client Presentation
+
+Google Slides: https://docs.google.com/presentation/d/1qE7pfeCacIfbvZtr7bpiZGr3GPuWMR7UIByWM5OqD20/edit?usp=sharing
 
 ### Latex Report
 
